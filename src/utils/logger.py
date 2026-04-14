@@ -1,0 +1,48 @@
+"""Simple project-wide logger."""
+from __future__ import annotations
+
+import logging
+import sys
+from pathlib import Path
+
+from config.settings import settings
+
+
+_LOG_FORMAT = "[%(asctime)s] %(levelname)-7s %(name)s: %(message)s"
+_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+_initialized = False
+
+
+def get_logger(name: str = "crypto_bot") -> logging.Logger:
+    """Return a configured logger. Safe to call multiple times."""
+    global _initialized
+
+    logger = logging.getLogger(name)
+
+    if not _initialized:
+        root = logging.getLogger()
+        root.setLevel(settings.log_level)
+
+        formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
+
+        # clear any default handlers (e.g., from pytest)
+        for h in list(root.handlers):
+            root.removeHandler(h)
+
+        stream = logging.StreamHandler(sys.stdout)
+        stream.setFormatter(formatter)
+        root.addHandler(stream)
+
+        try:
+            log_path: Path = settings.log_dir / "bot.log"
+            file_handler = logging.FileHandler(log_path, encoding="utf-8")
+            file_handler.setFormatter(formatter)
+            root.addHandler(file_handler)
+        except OSError:
+            # running in a restricted env - stream only
+            pass
+
+        _initialized = True
+
+    return logger

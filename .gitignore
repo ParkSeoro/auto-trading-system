@@ -1,0 +1,36 @@
+# Env / secrets
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Data & logs
+data/*.csv
+data/*.parquet
+*.sqlite3
+*.db
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Backtest artifacts
+backtest_results/
