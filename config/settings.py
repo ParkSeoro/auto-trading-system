@@ -32,6 +32,14 @@ def _get_int(name: str, default: int) -> int:
 
 @dataclass
 class Settings:
+    # Active exchange: "bithumb" (default) or "upbit"
+    exchange: str = field(default_factory=lambda: os.getenv("EXCHANGE", "bithumb").lower())
+
+    # Bithumb API credentials
+    bithumb_api_key: Optional[str] = field(default_factory=lambda: os.getenv("BITHUMB_API_KEY"))
+    bithumb_secret_key: Optional[str] = field(default_factory=lambda: os.getenv("BITHUMB_SECRET_KEY"))
+
+    # Upbit API credentials (kept for users who want to switch back)
     upbit_access_key: Optional[str] = field(default_factory=lambda: os.getenv("UPBIT_ACCESS_KEY"))
     upbit_secret_key: Optional[str] = field(default_factory=lambda: os.getenv("UPBIT_SECRET_KEY"))
 
@@ -48,9 +56,13 @@ class Settings:
     discord_webhook_url: Optional[str] = field(default_factory=lambda: os.getenv("DISCORD_WEBHOOK_URL"))
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO").upper())
 
+    # Bithumb specifics (default fee is 0.25%; with API coupon it can be 0.04%)
+    bithumb_fee_rate: float = field(default_factory=lambda: _get_float("BITHUMB_FEE_RATE", 0.0025))
+    bithumb_min_order_krw: float = field(default_factory=lambda: _get_float("BITHUMB_MIN_ORDER_KRW", 1_000.0))
+
     # Upbit specifics
-    upbit_fee_rate: float = 0.0005  # 0.05% taker (typical)
-    upbit_min_order_krw: float = 5_000.0
+    upbit_fee_rate: float = field(default_factory=lambda: _get_float("UPBIT_FEE_RATE", 0.0005))
+    upbit_min_order_krw: float = field(default_factory=lambda: _get_float("UPBIT_MIN_ORDER_KRW", 5_000.0))
 
     data_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "data")
     log_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "logs")
@@ -62,6 +74,15 @@ class Settings:
 
     def is_live(self) -> bool:
         return self.trading_mode == "live"
+
+    # Active-exchange convenience accessors ----------------------------
+    @property
+    def active_fee_rate(self) -> float:
+        return self.bithumb_fee_rate if self.exchange == "bithumb" else self.upbit_fee_rate
+
+    @property
+    def active_min_order_krw(self) -> float:
+        return self.bithumb_min_order_krw if self.exchange == "bithumb" else self.upbit_min_order_krw
 
 
 settings = Settings()

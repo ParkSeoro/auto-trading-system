@@ -50,7 +50,7 @@ class BacktestResult:
 class Backtester:
     strategy: Strategy
     starting_capital: float = 1_000_000.0
-    fee_rate: float = field(default_factory=lambda: settings.upbit_fee_rate)
+    fee_rate: float = field(default_factory=lambda: settings.active_fee_rate)
     risk: Optional[RiskManager] = None
 
     def run(self, df: pd.DataFrame) -> BacktestResult:

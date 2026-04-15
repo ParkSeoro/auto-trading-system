@@ -58,7 +58,7 @@ class RiskManager:
     risk_per_trade_pct: float = 0.01          # % of capital risked per trade
     flash_crash_threshold: float = -0.08      # -8% over 5 min -> kill switch
     cooldown_minutes: int = 60
-    min_order_krw: float = field(default_factory=lambda: settings.upbit_min_order_krw)
+    min_order_krw: float = field(default_factory=lambda: settings.active_min_order_krw)
 
     _daily: Optional[_DailyState] = field(default=None, init=False)
     _cooldown_until: Optional[datetime] = field(default=None, init=False)

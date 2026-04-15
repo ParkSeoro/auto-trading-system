@@ -251,12 +251,11 @@ def build_bot(
     markets: List[str],
     strategy_name: str,
     timeframe: str = "1d",
+    exchange_name: Optional[str] = None,
 ) -> TradingBot:
-    from src.exchanges import UpbitExchange
-    exchange = UpbitExchange(
-        access_key=settings.upbit_access_key,
-        secret_key=settings.upbit_secret_key,
-    )
+    from src.exchanges import build_exchange
+    exchange = build_exchange(exchange_name)
+    log.info("Using exchange: %s", exchange.name)
     strategy = get_strategy(strategy_name)
     return TradingBot(
         exchange=exchange,

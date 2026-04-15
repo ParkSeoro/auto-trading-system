@@ -1,8 +1,9 @@
 # 가상화폐 자동매매 시스템 (Crypto Auto-Trading System)
 
 Python 기반의 실제 작동 가능한 가상화폐 자동매매 프로그램입니다.
-업비트(Upbit) 거래소 API와 연동되며, 주식과는 다른 **가상화폐 전용 로직**(24/7 거래,
-높은 변동성 대응, 소수점 매매, 변동성 돌파 전략 등)을 구현합니다.
+**빗썸(Bithumb, 기본값) 및 업비트(Upbit)** 거래소 API와 연동되며, 주식과는 다른
+**가상화폐 전용 로직**(24/7 거래, 높은 변동성 대응, 소수점 매매, 변동성 돌파 전략 등)을 구현합니다.
+`.env`의 `EXCHANGE=bithumb|upbit` 한 줄로 거래소를 전환할 수 있습니다.
 
 > 주식용 `Reactivate automated trading program` 프로젝트와 동일한 레이어드 아키텍처
 > (Exchange → Data → Strategy → Risk → Executor → Bot)를 유지하되,
@@ -16,11 +17,11 @@ Python 기반의 실제 작동 가능한 가상화폐 자동매매 프로그램�
 |------|------------|------------------|
 | 거래 시간 | 평일 09:00–15:30 | **24시간 365일** 연속 루프 |
 | 주문 수량 | 정수 주식 수 | **소수점 수량** (KRW 금액 기준 매수) |
-| 주문 종류 | 지정가/시장가 | 업비트 규격(`price`, `market`, `limit`) |
+| 주문 종류 | 지정가/시장가 | 빗썸/업비트 규격 (`bid/ask`, `market`, `limit`) |
 | 데이터 단위 | 일봉 중심 | **분봉/시간봉/일봉 멀티-타임프레임** |
 | 대표 전략 | 이동평균 크로스오버 | **변동성 돌파(Larry Williams)**, 그리드, RSI-역추세 |
 | 리스크 | 고정 % 손절 | **ATR 기반 동적 손절**, 플래시 크래시 킬 스위치 |
-| 수수료 | ~0.015% | 업비트 0.05% 반영, 최소 주문액 5,000 KRW 제약 |
+| 수수료 | ~0.015% | **빗썸 0.25% / 업비트 0.05%** 자동 반영, 최소 주문액(빗썸 1,000 / 업비트 5,000 KRW) 제약 |
 | 시장 단절 | 서킷브레이커 | 연속 거래 → **최대 낙폭(MDD) 기반 일시 중단** |
 
 ---
@@ -32,7 +33,9 @@ src/
 ├── bot.py                  # 메인 트레이딩 루프 (24/7)
 ├── exchanges/
 │   ├── base.py             # 거래소 인터페이스 (Protocol)
-│   └── upbit.py            # 업비트 REST API (JWT 서명)
+│   ├── bithumb.py          # 빗썸 REST API (HMAC-SHA512 서명) — 기본
+│   ├── upbit.py            # 업비트 REST API (JWT 서명)
+│   └── __init__.py         # build_exchange() 팩토리 (EXCHANGE env 기반)
 ├── data/
 │   └── market_data.py      # OHLCV 캐시 · 멀티-TF 수집
 ├── indicators/
@@ -73,8 +76,8 @@ src/
 탐색기에서 `C:\Users\psr15\Desktop\crypto` 로 이동 후 **`install.bat` 더블클릭**
 - 가상환경(.venv) 자동 생성
 - 필요한 라이브러리 자동 설치
-- `.env` 자동 생성
-- 44개 단위 테스트 자동 실행
+- `.env` 자동 생성 (기본 `EXCHANGE=bithumb`)
+- 단위 테스트 자동 실행 (61개)
 
 > **한글이 깨져 보이면?** 배치파일 자체는 ASCII 전용으로 작성되어 깨지지 않습니다.
 > Python 출력 로그가 깨질 경우 배치파일 상단 `chcp 65001` 이 자동 적용되므로 Windows 10 이상에서는 정상 표시됩니다.
@@ -82,7 +85,10 @@ src/
 ### 3단계. (선택) API 키 입력
 실거래(LIVE)를 할 경우에만 필요. 페이퍼 트레이딩과 백테스트는 키 없이 가능.
 - 메모장으로 `.env` 파일 열기
-- `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY` 에 업비트 [Open API 키](https://upbit.com/mypage/open_api_management) 입력
+- **빗썸(기본):** `EXCHANGE=bithumb` 유지 후,
+  `BITHUMB_API_KEY`, `BITHUMB_SECRET_KEY` 에 빗썸 [Open API 키](https://www.bithumb.com/u1/US127) 입력
+- **업비트 사용 시:** `EXCHANGE=upbit` 로 바꾼 뒤
+  `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY` 에 업비트 [Open API 키](https://upbit.com/mypage/open_api_management) 입력
 
 ### 4단계. 실행 — **`start.bat` 더블클릭**하면 메뉴가 뜹니다
 ```
@@ -110,6 +116,14 @@ run_paper.bat KRW-BTC,KRW-ETH ensemble 1h
 run_backtest.bat KRW-BTC volatility_breakout 1000 2000000
 run_live.bat KRW-BTC volatility_breakout
 ```
+
+**거래소 전환(런타임):** 모든 스크립트는 `--exchange bithumb|upbit` 플래그도 지원합니다.
+```cmd
+python -m scripts.run_bot --exchange bithumb --mode paper --markets KRW-BTC --strategy ensemble
+python -m scripts.run_backtest --exchange upbit  --market KRW-BTC --strategy volatility_breakout
+```
+시장 코드는 빗썸/업비트 공통 `KRW-BTC` 형식을 쓰며, 빗썸 내부에서는
+`BTC_KRW` 로 자동 변환되어 전송됩니다.
 
 ---
 

@@ -36,8 +36,10 @@ def test_paper_buy_and_sell_roundtrip():
 
 
 def test_paper_buy_below_min_rejected():
-    broker = PaperBroker(cash=10_000)
-    order = broker.buy("KRW-BTC", funds_krw=1_000, price=50_000_000)
+    # Pin min_order_krw so the test doesn't depend on the active exchange default
+    # (Bithumb=1,000 / Upbit=5,000). At 500 KRW, buy must be rejected either way.
+    broker = PaperBroker(cash=10_000, min_order_krw=5_000)
+    order = broker.buy("KRW-BTC", funds_krw=500, price=50_000_000)
     assert order is None
     assert "KRW-BTC" not in broker.positions
 

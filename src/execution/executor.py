@@ -45,7 +45,8 @@ class Position:
 @dataclass
 class PaperBroker:
     cash: float = field(default_factory=lambda: settings.paper_capital)
-    fee_rate: float = field(default_factory=lambda: settings.upbit_fee_rate)
+    fee_rate: float = field(default_factory=lambda: settings.active_fee_rate)
+    min_order_krw: float = field(default_factory=lambda: settings.active_min_order_krw)
     positions: Dict[str, Position] = field(default_factory=dict)
     trade_log: List[dict] = field(default_factory=list)
 
@@ -59,8 +60,8 @@ class PaperBroker:
             stop_loss: Optional[float] = None, take_profit: Optional[float] = None) -> Optional[Order]:
         if funds_krw > self.cash:
             funds_krw = self.cash
-        if funds_krw < settings.upbit_min_order_krw:
-            log.warning("[paper] buy rejected, funds %.0f < min %.0f", funds_krw, settings.upbit_min_order_krw)
+        if funds_krw < self.min_order_krw:
+            log.warning("[paper] buy rejected, funds %.0f < min %.0f", funds_krw, self.min_order_krw)
             return None
 
         fee = funds_krw * self.fee_rate

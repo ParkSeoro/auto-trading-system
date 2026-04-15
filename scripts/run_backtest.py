@@ -16,7 +16,7 @@ import pandas as pd
 from config.settings import settings
 from src.backtesting import Backtester
 from src.data import candles_to_dataframe
-from src.exchanges import UpbitExchange
+from src.exchanges import build_exchange
 from src.risk.risk_manager import RiskManager
 from src.strategies import get_strategy
 from src.utils.logger import get_logger
@@ -35,6 +35,8 @@ def _slice_by_date(df: pd.DataFrame, start: str, end: str) -> pd.DataFrame:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Backtest a crypto strategy")
+    parser.add_argument("--exchange", choices=["bithumb", "upbit"], default=None,
+                        help="Exchange (default from EXCHANGE env var, usually bithumb)")
     parser.add_argument("--market", default="KRW-BTC")
     parser.add_argument("--strategy", default="volatility_breakout")
     parser.add_argument("--timeframe", default="1d")
@@ -46,10 +48,8 @@ def main() -> int:
                         help="Optional path to save equity curve + trades CSV")
     args = parser.parse_args()
 
-    exchange = UpbitExchange(
-        access_key=settings.upbit_access_key,
-        secret_key=settings.upbit_secret_key,
-    )
+    exchange = build_exchange(args.exchange)
+    log.info("Using exchange: %s", exchange.name)
     log.info("Fetching %d bars of %s (%s)...", args.count, args.market, args.timeframe)
     candles = exchange.fetch_ohlcv(args.market, timeframe=args.timeframe, count=args.count)
     df = candles_to_dataframe(candles)
