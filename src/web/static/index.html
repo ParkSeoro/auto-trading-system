@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Crypto Auto-Trading Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <span>Crypto Auto-Trading</span>
+      <span class="tag" id="tag-exchange">bithumb</span>
+      <span class="tag" id="tag-mode">paper</span>
+    </div>
+    <div class="status-pill" id="status-pill">IDLE</div>
+    <div class="server-time" id="server-time">–</div>
+  </header>
+
+  <main class="grid">
+    <!-- Controls card -->
+    <section class="card controls">
+      <h2>제어판</h2>
+      <div class="row">
+        <label>거래소
+          <select id="sel-exchange">
+            <option value="">(.env 기본값)</option>
+            <option value="bithumb">Bithumb</option>
+            <option value="upbit">Upbit</option>
+          </select>
+        </label>
+        <label>모드
+          <select id="sel-mode">
+            <option value="paper" selected>Paper (모의)</option>
+            <option value="live">LIVE (실거래)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>종목 (쉼표 구분)
+          <input id="inp-markets" value="KRW-BTC" />
+        </label>
+        <label>타임프레임
+          <select id="sel-tf">
+            <option>1m</option><option>5m</option><option>15m</option>
+            <option>30m</option><option>1h</option><option>4h</option>
+            <option selected>1d</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>전략
+          <select id="sel-strategy">
+            <option value="adaptive_ensemble" selected>Adaptive Ensemble (AI 자가진화)</option>
+            <option value="ensemble">Ensemble (고정)</option>
+            <option value="volatility_breakout">Volatility Breakout</option>
+            <option value="rsi_mean_reversion">RSI Mean Reversion</option>
+            <option value="bollinger_breakout">Bollinger Breakout</option>
+            <option value="grid">Grid</option>
+          </select>
+        </label>
+      </div>
+      <div class="row btnrow">
+        <button id="btn-start" class="btn btn-primary">시작</button>
+        <button id="btn-stop" class="btn btn-danger">중지</button>
+      </div>
+      <div class="hint" id="hint">준비.</div>
+    </section>
+
+    <!-- Equity chart -->
+    <section class="card chart">
+      <h2>자산 곡선 (Equity)</h2>
+      <canvas id="eqchart" height="180"></canvas>
+      <div class="stats">
+        <div><small>현재 자산</small><span id="kpi-equity">–</span></div>
+        <div><small>현금</small><span id="kpi-cash">–</span></div>
+        <div><small>거래 수</small><span id="kpi-trades">0</span></div>
+      </div>
+    </section>
+
+    <!-- AI weights -->
+    <section class="card ai">
+      <h2>AI 가중치 <small>(Hedge 학습)</small></h2>
+      <div id="weights-box" class="weights-box">아직 학습 데이터가 없습니다.</div>
+      <h3>진화된 파라미터</h3>
+      <pre id="best-params">{}</pre>
+    </section>
+
+    <!-- Positions -->
+    <section class="card positions">
+      <h2>포지션</h2>
+      <table>
+        <thead>
+          <tr><th>Market</th><th>수량</th><th>평단</th><th>SL</th><th>TP</th></tr>
+        </thead>
+        <tbody id="positions-body">
+          <tr><td colspan="5" class="muted">열린 포지션 없음</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Trades -->
+    <section class="card trades">
+      <h2>최근 거래</h2>
+      <table>
+        <thead>
+          <tr><th>시각</th><th>Market</th><th>Side</th><th>수량</th><th>가격</th><th>수수료</th><th>Strategy</th><th>사유</th></tr>
+        </thead>
+        <tbody id="trades-body">
+          <tr><td colspan="8" class="muted">거래 내역 없음</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    Crypto Auto-Trading System · FastAPI · AI 자가진화 · Bithumb/Upbit
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

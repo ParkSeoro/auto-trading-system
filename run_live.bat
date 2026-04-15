@@ -22,7 +22,10 @@ if not exist ".env" (
 echo.
 echo ================================================================
 echo   [WARNING] LIVE mode
-echo   Real orders will be placed on your Upbit account.
+echo   Real orders will be placed on your exchange account.
+echo   Current exchange is set by EXCHANGE in .env
+echo     EXCHANGE=bithumb  (default) uses BITHUMB_API_KEY / BITHUMB_SECRET_KEY
+echo     EXCHANGE=upbit             uses UPBIT_ACCESS_KEY  / UPBIT_SECRET_KEY
 echo ================================================================
 echo.
 set /p CONFIRM=  Are you sure? (type YES to proceed):

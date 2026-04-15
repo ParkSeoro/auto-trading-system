@@ -17,6 +17,13 @@ STRATEGY_REGISTRY = {
 
 def get_strategy(name: str, **kwargs) -> Strategy:
     name = name.lower()
+    if name == "adaptive_ensemble":
+        # Lazy import to avoid circular import at module load.
+        from src.ai.adaptive import AdaptiveEnsembleStrategy
+        return AdaptiveEnsembleStrategy(**kwargs)
     if name not in STRATEGY_REGISTRY:
-        raise ValueError(f"Unknown strategy: {name}. Available: {list(STRATEGY_REGISTRY)}")
+        raise ValueError(
+            f"Unknown strategy: {name}. "
+            f"Available: {list(STRATEGY_REGISTRY) + ['adaptive_ensemble']}"
+        )
     return STRATEGY_REGISTRY[name](**kwargs)

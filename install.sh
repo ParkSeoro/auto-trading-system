@@ -54,7 +54,9 @@ if [ -f ".env" ]; then
 else
     if [ -f ".env.example" ]; then
         cp .env.example .env
-        echo "    - .env 생성됨. UPBIT_ACCESS_KEY / UPBIT_SECRET_KEY 를 입력하세요."
+        echo "    - .env 생성됨. 기본 거래소는 빗썸(EXCHANGE=bithumb)."
+        echo "    - 실거래 시 BITHUMB_API_KEY / BITHUMB_SECRET_KEY 입력."
+        echo "    - 업비트로 바꾸려면 EXCHANGE=upbit 로 변경 후 UPBIT_* 키 입력."
     fi
 fi
 

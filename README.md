@@ -47,6 +47,13 @@ src/
 │   ├── bollinger_breakout.py
 │   ├── grid_trading.py     # 횡보장 그리드
 │   └── ensemble.py         # 다중 전략 투표
+├── ai/                     # *** AI 자가진화 엔진 ***
+│   ├── adaptive.py         # Hedge 온라인 학습 + AdaptiveEnsembleStrategy
+│   └── evolver.py          # 유전 알고리즘 + 워크포워드 하이퍼파라미터 튜닝
+├── web/                    # *** 웹 대시보드 (FastAPI) ***
+│   ├── app.py              # REST + WebSocket 엔드포인트
+│   ├── bot_manager.py      # 쓰레드 기반 봇 생명주기 관리
+│   └── static/             # 바닐라 JS SPA (Chart 포함)
 ├── risk/
 │   └── risk_manager.py     # ATR 포지션 사이징, SL/TP, MDD 킬 스위치
 ├── execution/
@@ -59,6 +66,49 @@ src/
     ├── logger.py
     └── notifier.py         # (옵션) 디스코드/슬랙 웹훅
 ```
+
+---
+
+## 🤖 AI 자가진화 엔진 (주식 프로젝트 업그레이드판)
+
+이 시스템은 **두 단계의 피드백 루프**로 스스로 학습/개선됩니다:
+
+### 1) 온라인 학습 — `adaptive_ensemble` 전략
+- 매 N틱마다 SQLite 거래 로그에서 **전략별 실현 PnL**을 FIFO로 계산
+- **Hedge(multiplicative weights) 알고리즘** 으로 승자는 가중치 ↑, 패자는 ↓
+- 가중치는 `data/weights.json` 에 자동 저장 → 재시작해도 이어서 학습
+- 최소 가중치(floor)가 있어 한 전략이 완전히 죽어버리는 걸 방지
+
+### 2) 오프라인 진화 — 유전 알고리즘 파라미터 튜너
+```cmd
+run_evolve.bat KRW-BTC 800 10        :: 마켓, 캔들 수, 세대 수
+```
+- 각 전략의 하이퍼파라미터(VB의 K, RSI 임계치, BB 기간/표준편차 등)를
+  **유전 알고리즘 + 워크포워드 검증** 으로 자동 탐색
+- 학습 구간으로 GA 진화 → 검증 구간에서 **샤프 · 총수익 · MDD** 로 적합도 평가
+- 최적 파라미터를 `data/best_params.json` 에 저장
+- 라이브 봇의 `adaptive_ensemble` 이 주기적으로 이 파일을 읽어 반영
+
+즉, **주식 프로젝트처럼** "거래할수록 전략이 진화" + "주기적으로 GA 재튜닝"의
+이중 구조입니다.  외부 ML 라이브러리 없이 numpy/pandas만 사용 — 재현성 ✔
+
+---
+
+## 🖥️ 웹 대시보드 (FastAPI + WebSocket)
+
+**`run_web.bat` 더블클릭** → 브라우저가 http://localhost:8787 로 자동 오픈.
+
+주요 기능:
+
+- **시작/중지 버튼** — 거래소/모드/전략/타임프레임/종목을 UI에서 설정해 바로 실행
+- **자산 곡선 (실시간 차트)** — WebSocket 으로 1Hz 업데이트
+- **AI 가중치 시각화** — 현재 Hedge 가중치 + 최신 진화 파라미터 표시
+- **포지션 테이블** — 열린 포지션의 평단/손절/익절 확인
+- **거래 로그** — 최근 체결 + 전략 + 사유 표시
+- **REST API** — `/api/status`, `/api/equity`, `/api/trades`, `/api/weights`,
+  `/api/start`, `/api/stop`, WebSocket `/ws`
+
+외부 CDN 의존 없이 바닐라 JS + Canvas 차트로 구현되어 **오프라인에서도 동작**합니다.
 
 ---
 
@@ -75,9 +125,9 @@ src/
 ### 2단계. 자동 설치
 탐색기에서 `C:\Users\psr15\Desktop\crypto` 로 이동 후 **`install.bat` 더블클릭**
 - 가상환경(.venv) 자동 생성
-- 필요한 라이브러리 자동 설치
+- 필요한 라이브러리 자동 설치 (FastAPI/Uvicorn 포함)
 - `.env` 자동 생성 (기본 `EXCHANGE=bithumb`)
-- 단위 테스트 자동 실행 (61개)
+- 단위 테스트 자동 실행 (82개)
 
 > **한글이 깨져 보이면?** 배치파일 자체는 ASCII 전용으로 작성되어 깨지지 않습니다.
 > Python 출력 로그가 깨질 경우 배치파일 상단 `chcp 65001` 이 자동 적용되므로 Windows 10 이상에서는 정상 표시됩니다.
@@ -108,6 +158,8 @@ src/
 | `run_paper.bat`     | 페이퍼 트레이딩 (기본: KRW-BTC, 앙상블) |
 | `run_backtest.bat`  | 백테스트 (기본: KRW-BTC, 500봉) |
 | `run_live.bat`      | 실거래 (YES 확인 필요) |
+| `run_web.bat`       | **웹 대시보드** (http://localhost:8787) |
+| `run_evolve.bat`    | **AI 전략 진화** (유전 알고리즘 튜닝) |
 | `run_tests.bat`     | 단위 테스트 실행 |
 
 **배치파일 인수 지정:**

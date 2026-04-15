@@ -71,7 +71,9 @@ if exist ".env" (
     if exist ".env.example" (
         copy /y ".env.example" ".env" >nul
         echo     - Copied .env.example to .env
-        echo     - Open .env in Notepad and set UPBIT_ACCESS_KEY / UPBIT_SECRET_KEY
+        echo     - Default exchange: Bithumb ^(EXCHANGE=bithumb^)
+        echo     - Set BITHUMB_API_KEY / BITHUMB_SECRET_KEY for LIVE trading
+        echo     - To use Upbit instead: set EXCHANGE=upbit and fill UPBIT_* keys
     ) else (
         echo     - No .env.example found. Create manually.
     )
@@ -92,14 +94,17 @@ echo.
 echo ================================================================
 echo   Installation complete!
 echo.
+echo   Default exchange: BITHUMB (edit .env to switch to UPBIT)
+echo.
 echo   Next steps:
-echo     1^) (Live trading only^) Edit .env and set Upbit API keys
+echo     1^) (Live trading only^) Edit .env and set Bithumb OR Upbit API keys
 echo     2^) Double-click start.bat for an interactive menu
 echo.
 echo   Or run directly:
 echo     run_paper.bat     - Paper (simulated) trading, safe
 echo     run_backtest.bat  - Backtest strategies on history
 echo     run_live.bat      - LIVE trading (real funds!)
+echo     run_web.bat       - Web dashboard (http://localhost:8787)
 echo     run_tests.bat     - Run unit tests
 echo ================================================================
 echo.

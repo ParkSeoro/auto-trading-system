@@ -19,11 +19,15 @@ while true; do
   Crypto Auto-Trading System
 ================================================================
 
+  활성 거래소는 .env의 EXCHANGE (bithumb 기본 / upbit) 에서 설정
+
   [1] 페이퍼 트레이딩 시작 (가상자본, 안전)
   [2] 백테스트 실행 (과거 데이터)
   [3] 실거래 시작 (주의!)
   [4] 단위 테스트 실행
-  [5] .env 파일 편집 (API 키)
+  [5] .env 파일 편집 (거래소 + API 키)
+  [6] 웹 대시보드 시작 (http://localhost:8787)
+  [7] AI 전략 진화 (유전 알고리즘 튜닝)
   [0] 종료
 
 EOF
@@ -67,6 +71,19 @@ EOF
         5)
             [ ! -f ".env" ] && [ -f ".env.example" ] && cp .env.example .env
             "${EDITOR:-nano}" .env
+            ;;
+        6)
+            echo
+            echo "웹 대시보드 시작: http://localhost:8787  (Ctrl+C로 중지)"
+            $PY -m scripts.run_web
+            read -rp "Press Enter to continue..." _
+            ;;
+        7)
+            read -rp "  마켓 [KRW-BTC]: " M; M=${M:-KRW-BTC}
+            read -rp "  캔들 수 [800]: " C; C=${C:-800}
+            read -rp "  세대 수 [8]: " G; G=${G:-8}
+            $PY -m scripts.run_evolve --market "$M" --count "$C" --generations "$G"
+            read -rp "Press Enter to continue..." _
             ;;
         0) exit 0 ;;
     esac

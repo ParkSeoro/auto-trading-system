@@ -24,11 +24,14 @@ echo ================================================================
 echo   Crypto Auto-Trading System
 echo ================================================================
 echo.
+echo   Active exchange is set in .env as EXCHANGE=bithumb (default) or upbit
+echo.
 echo   [1] Paper trading (virtual capital, safe)
 echo   [2] Backtest (historical data)
 echo   [3] LIVE trading (real money!)
 echo   [4] Run unit tests
-echo   [5] Edit .env (API keys)
+echo   [5] Edit .env (exchange + API keys)
+echo   [6] Launch Web Dashboard (http://localhost:8787)
 echo   [0] Exit
 echo.
 set /p choice=  Select:
@@ -38,6 +41,7 @@ if "%choice%"=="2" goto backtest
 if "%choice%"=="3" goto live
 if "%choice%"=="4" goto tests
 if "%choice%"=="5" goto editenv
+if "%choice%"=="6" goto web
 if "%choice%"=="0" goto end
 goto menu
 
@@ -80,7 +84,8 @@ goto menu
 cls
 echo.
 echo ================================================================
-echo   [WARNING] LIVE mode - real Upbit account funds will be used.
+echo   [WARNING] LIVE mode - real funds on your exchange account.
+echo   Check EXCHANGE in .env (bithumb or upbit) before continuing.
 echo ================================================================
 echo.
 if not exist ".env" (
@@ -107,6 +112,19 @@ goto menu
 cls
 echo.
 call ".venv\Scripts\python.exe" -m pytest -v
+pause
+goto menu
+
+:web
+cls
+echo.
+echo ================================================================
+echo   Starting Web Dashboard
+echo   Open browser at http://localhost:8787
+echo   Press Ctrl+C in this window to stop.
+echo ================================================================
+echo.
+call ".venv\Scripts\python.exe" -m scripts.run_web
 pause
 goto menu
 
