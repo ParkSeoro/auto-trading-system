@@ -1,9 +1,12 @@
 @echo off
-REM Paper (모의) 트레이딩 - 가상자본, 안전
+REM Paper (simulated) trading - virtual capital, safe
+chcp 65001 >nul 2>&1
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\python.exe" (
-    echo [!] 설치되지 않았습니다. install.bat 을 먼저 실행하세요.
+    echo [!] Not installed. Run install.bat first.
     pause
     exit /b 1
 )
@@ -18,11 +21,11 @@ set TIMEFRAME=%3
 if "%TIMEFRAME%"=="" set TIMEFRAME=1d
 
 echo.
-echo === 페이퍼 트레이딩 시작 ===
-echo   마켓    : %MARKETS%
-echo   전략    : %STRATEGY%
-echo   타임프레임: %TIMEFRAME%
-echo   (Ctrl+C 로 중단)
+echo === PAPER TRADING ===
+echo   Markets  : %MARKETS%
+echo   Strategy : %STRATEGY%
+echo   Timeframe: %TIMEFRAME%
+echo   (Press Ctrl+C to stop)
 echo.
 
 call ".venv\Scripts\python.exe" -m scripts.run_bot --mode paper --markets %MARKETS% --strategy %STRATEGY% --timeframe %TIMEFRAME%
