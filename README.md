@@ -59,43 +59,82 @@ src/
 
 ---
 
-## 설치
+---
+
+## 🪟 Windows 빠른 설치 (가장 쉬움)
+
+파일을 전부 `C:\Users\psr15\Desktop\crypto` 에 복사하거나 `git clone` 했다고 가정합니다.
+
+### 1단계. Python 설치 (최초 1회)
+- https://www.python.org/downloads/ 에서 **Python 3.10 이상** 다운로드
+- 설치 시 **"Add python.exe to PATH"** 체크 필수
+
+### 2단계. 자동 설치
+탐색기에서 `C:\Users\psr15\Desktop\crypto` 로 이동 후 **`install.bat` 더블클릭**
+- 가상환경(.venv) 자동 생성
+- 필요한 라이브러리 자동 설치
+- `.env` 자동 생성
+- 44개 단위 테스트 자동 실행
+
+### 3단계. (선택) API 키 입력
+실거래(LIVE)를 할 경우에만 필요. 페이퍼 트레이딩과 백테스트는 키 없이 가능.
+- 메모장으로 `.env` 파일 열기
+- `UPBIT_ACCESS_KEY`, `UPBIT_SECRET_KEY` 에 업비트 [Open API 키](https://upbit.com/mypage/open_api_management) 입력
+
+### 4단계. 실행 — **`start.bat` 더블클릭**하면 메뉴가 뜹니다
+```
+[1] 페이퍼 트레이딩 시작 (가상자본, 안전)
+[2] 백테스트 실행 (과거 데이터)
+[3] 실거래 시작 (주의!)
+[4] 단위 테스트 실행
+[5] .env 파일 열어 API 키 설정
+```
+
+또는 개별 실행:
+
+| 파일 | 기능 |
+|------|------|
+| `install.bat`       | 최초 설치 (가상환경 · 라이브러리 · 테스트) |
+| `start.bat`         | **메뉴 UI** — 초보자 추천 |
+| `run_paper.bat`     | 페이퍼 트레이딩 (기본: KRW-BTC, 앙상블) |
+| `run_backtest.bat`  | 백테스트 (기본: KRW-BTC, 500봉) |
+| `run_live.bat`      | 실거래 (YES 확인 필요) |
+| `run_tests.bat`     | 단위 테스트 실행 |
+
+**배치파일 인수 지정:**
+```cmd
+run_paper.bat KRW-BTC,KRW-ETH ensemble 1h
+run_backtest.bat KRW-BTC volatility_breakout 1000 2000000
+run_live.bat KRW-BTC volatility_breakout
+```
+
+---
+
+## 🐧 macOS / Linux 설치
+
+```bash
+./install.sh                  # 최초 1회
+./start.sh                    # 메뉴 실행
+# 또는
+./run_paper.sh KRW-BTC ensemble 1d
+./run_backtest.sh KRW-BTC volatility_breakout 500 1000000
+./run_live.sh
+./run_tests.sh
+```
+
+---
+
+## 수동 설치 (고급 사용자)
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate         # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
-# .env 파일을 열어 UPBIT_ACCESS_KEY / UPBIT_SECRET_KEY 입력
-```
+cp .env.example .env              # Windows: copy .env.example .env
 
-## 실행
-
-### 1) 페이퍼 트레이딩 (안전 · 권장 첫 실행)
-
-```bash
 python -m scripts.run_bot --mode paper --markets KRW-BTC,KRW-ETH --strategy ensemble
-```
-
-### 2) 백테스팅
-
-```bash
-python -m scripts.run_backtest \
-    --market KRW-BTC \
-    --strategy volatility_breakout \
-    --from 2024-01-01 --to 2024-12-31 \
-    --capital 1000000
-```
-
-### 3) 실거래 (⚠️ 반드시 페이퍼로 검증 후)
-
-```bash
-python -m scripts.run_bot --mode live --markets KRW-BTC --strategy volatility_breakout
-```
-
-## 테스트
-
-```bash
+python -m scripts.run_backtest --market KRW-BTC --strategy volatility_breakout \
+    --from 2024-01-01 --to 2024-12-31 --capital 1000000
 pytest -v
 ```
 
