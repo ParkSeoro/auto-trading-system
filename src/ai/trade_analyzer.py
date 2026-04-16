@@ -66,11 +66,13 @@ class StrategyStats:
         return (wr * self.avg_win) + ((1 - wr) * self.avg_loss) if self.total_trades > 0 else 0.0
 
     def profit_factor(self) -> float:
-        total_wins = self.avg_win * self.wins if self.wins > 0 else 0.0
-        total_losses = abs(self.avg_loss * self.losses) if self.losses > 0 else 0.0
-        if total_losses > 0:
-            return total_wins / total_losses
-        return float("inf") if total_wins > 0 else 0.0
+        if not self.recent_pnl:
+            return 0.0
+        gross_wins = sum(p for p in self.recent_pnl if p > 0)
+        gross_losses = abs(sum(p for p in self.recent_pnl if p < 0))
+        if gross_losses > 0:
+            return gross_wins / gross_losses
+        return float("inf") if gross_wins > 0 else 0.0
 
     def to_dict(self) -> dict:
         return {

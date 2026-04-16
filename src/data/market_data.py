@@ -9,9 +9,13 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+import logging
+
 import pandas as pd
 
 from src.exchanges.base import Candle, Exchange
+
+log = logging.getLogger(__name__)
 
 
 def candles_to_dataframe(candles: List[Candle]) -> pd.DataFrame:
@@ -54,7 +58,13 @@ class MarketData:
         ):
             return entry.df
 
-        candles = self.exchange.fetch_ohlcv(market, timeframe=timeframe, count=count)
+        try:
+            candles = self.exchange.fetch_ohlcv(market, timeframe=timeframe, count=count)
+        except Exception as exc:
+            log.warning("OHLCV fetch failed for %s/%s: %s", market, timeframe, exc)
+            if entry is not None:
+                return entry.df
+            return candles_to_dataframe([])
         df = candles_to_dataframe(candles)
         self._cache[key] = _CacheEntry(df=df, fetched_at=now)
         return df
@@ -62,6 +72,8 @@ class MarketData:
     def get_current_price(self, market: str) -> Optional[float]:
         try:
             ticker = self.exchange.get_ticker(market)
-            return float(ticker.get("trade_price"))
-        except Exception:  # pragma: no cover - network
+            price = ticker.get("trade_price") or ticker.get("closing_price")
+            return float(price) if price else None
+        except Exception as exc:
+            log.warning("Ticker fetch failed for %s: %s", market, exc)
             return None

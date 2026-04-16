@@ -62,6 +62,7 @@ class Backtester:
         cash = self.starting_capital
         qty = 0.0
         avg_price = 0.0
+        entry_cost = 0.0  # total cost basis including fees
         stop_loss: Optional[float] = None
         take_profit: Optional[float] = None
 
@@ -92,7 +93,7 @@ class Backtester:
                 # Stop loss first (conservative assumption)
                 if stop_loss is not None and low <= stop_loss:
                     proceeds = qty * stop_loss * (1 - self.fee_rate)
-                    pnl = proceeds - qty * avg_price
+                    pnl = proceeds - entry_cost
                     realized_pnls.append(pnl)
                     trades.append({
                         "ts": ts, "side": "sell", "reason": "stop_loss",
@@ -101,12 +102,13 @@ class Backtester:
                     cash += proceeds
                     qty = 0.0
                     avg_price = 0.0
+                    entry_cost = 0.0
                     stop_loss = take_profit = None
                     self._record_equity(equity_points, ts, cash, qty, fill_price)
                     continue
                 if take_profit is not None and high >= take_profit:
                     proceeds = qty * take_profit * (1 - self.fee_rate)
-                    pnl = proceeds - qty * avg_price
+                    pnl = proceeds - entry_cost
                     realized_pnls.append(pnl)
                     trades.append({
                         "ts": ts, "side": "sell", "reason": "take_profit",
@@ -115,6 +117,7 @@ class Backtester:
                     cash += proceeds
                     qty = 0.0
                     avg_price = 0.0
+                    entry_cost = 0.0
                     stop_loss = take_profit = None
                     self._record_equity(equity_points, ts, cash, qty, fill_price)
                     continue
@@ -132,6 +135,7 @@ class Backtester:
                     fee = funds * self.fee_rate
                     qty = (funds - fee) / fill_price
                     avg_price = fill_price
+                    entry_cost = funds  # total spent including fee
                     cash -= funds
                     stop_loss = decision.stop_loss
                     take_profit = decision.take_profit
@@ -142,7 +146,7 @@ class Backtester:
 
             elif signal.type == SignalType.SELL and qty > 0:
                 proceeds = qty * fill_price * (1 - self.fee_rate)
-                pnl = proceeds - qty * avg_price
+                pnl = proceeds - entry_cost
                 realized_pnls.append(pnl)
                 trades.append({
                     "ts": ts, "side": "sell", "reason": signal.reason,
@@ -151,6 +155,7 @@ class Backtester:
                 cash += proceeds
                 qty = 0.0
                 avg_price = 0.0
+                entry_cost = 0.0
                 stop_loss = take_profit = None
 
             self._record_equity(equity_points, ts, cash, qty, fill_price)
@@ -161,7 +166,7 @@ class Backtester:
         last_price = float(df["close"].iloc[-1])
         if qty > 0:
             proceeds = qty * last_price * (1 - self.fee_rate)
-            pnl = proceeds - qty * avg_price
+            pnl = proceeds - entry_cost
             realized_pnls.append(pnl)
             trades.append({
                 "ts": df.index[-1], "side": "sell", "reason": "mark_to_close",

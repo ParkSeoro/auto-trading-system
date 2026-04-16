@@ -143,14 +143,18 @@ def test_persistence_roundtrip(tmp_path):
 
 
 def test_strategy_stats_metrics():
+    recent = [10000, 12000, 8000, 11000, 9000, 10500, 9500, -5000, -4500, -5500]
     s = StrategyStats(
         total_trades=10, wins=7, losses=3,
         total_pnl=50000, avg_win=10000, avg_loss=-5000,
         current_streak=2, max_loss_streak=-2,
+        recent_pnl=recent,
     )
     assert s.win_rate() == 0.7
     assert s.expectancy() == 0.7 * 10000 + 0.3 * (-5000)
-    assert s.profit_factor() == (10000 * 7) / (5000 * 3)
+    gross_wins = sum(p for p in recent if p > 0)
+    gross_losses = abs(sum(p for p in recent if p < 0))
+    assert s.profit_factor() == gross_wins / gross_losses
     d = s.to_dict()
     assert d["win_rate"] == 0.7
     assert d["total_trades"] == 10

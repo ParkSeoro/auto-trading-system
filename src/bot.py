@@ -113,6 +113,13 @@ class TradingBot:
 
         equity = self._current_equity(prices)
         self.risk.update_equity(equity)
+
+        # Track open position count for max_open_positions limit
+        open_count = sum(
+            1 for m in self.markets
+            if self.executor.get_position(m) and self.executor.get_position(m).quantity > 0
+        )
+        self.risk.set_open_positions(open_count)
         self.trade_log.log_equity(
             equity=equity,
             cash=self.executor.paper.cash if self.executor.is_paper else equity,

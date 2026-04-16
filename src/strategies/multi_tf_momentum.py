@@ -63,17 +63,17 @@ class MultiTFMomentumStrategy(Strategy):
         e20 = float(ema_20.iloc[-1]) if not pd.isna(ema_20.iloc[-1]) else 0
         e10 = float(ema_10.iloc[-1]) if not pd.isna(ema_10.iloc[-1]) else 0
 
-        if current > e20 > 0:
+        if e20 > 0 and current > e20:
             bullish += 1
             reasons.append("above EMA20")
-        elif current < e20 > 0:
+        elif e20 > 0 and current < e20:
             bearish += 1
 
         # 2. EMA(10) > EMA(20) (trend direction)
-        if e10 > e20 > 0:
+        if e10 > 0 and e20 > 0 and e10 > e20:
             bullish += 1
             reasons.append("EMA10>20")
-        elif e20 > e10 > 0:
+        elif e10 > 0 and e20 > 0 and e20 > e10:
             bearish += 1
 
         # 3. RSI rising and in healthy range

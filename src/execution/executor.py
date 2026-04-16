@@ -71,7 +71,7 @@ class PaperBroker:
         pos = self.positions.get(market) or Position(market=market, opened_at=datetime.now(timezone.utc))
         new_qty = pos.quantity + qty
         if new_qty > 0:
-            pos.avg_price = (pos.avg_price * pos.quantity + net) / new_qty
+            pos.avg_price = (pos.avg_price * pos.quantity + qty * price) / new_qty
         pos.quantity = new_qty
         pos.stop_loss = stop_loss
         pos.take_profit = take_profit

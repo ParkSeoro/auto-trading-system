@@ -68,8 +68,10 @@ class RiskManager:
     flash_crash_threshold: float = -0.08      # -8% over 5 min -> kill switch
     cooldown_minutes: int = 60
     min_order_krw: float = field(default_factory=lambda: settings.active_min_order_krw)
+    max_open_positions: int = 5               # max simultaneous open positions
     trailing_activate_atr: float = 1.0        # activate trailing after 1×ATR profit
     trailing_distance_atr: float = 1.5        # trail at 1.5×ATR below peak
+    _open_position_count: int = field(default=0, init=False)
 
     _daily: Optional[_DailyState] = field(default=None, init=False)
     _cooldown_until: Optional[datetime] = field(default=None, init=False)
@@ -136,6 +138,9 @@ class RiskManager:
     # ------------------------------------------------------------------
     # Entry sizing
     # ------------------------------------------------------------------
+    def set_open_positions(self, count: int) -> None:
+        self._open_position_count = count
+
     def evaluate_entry(
         self,
         df: pd.DataFrame,
@@ -144,6 +149,9 @@ class RiskManager:
     ) -> RiskDecision:
         if self.is_halted():
             return RiskDecision(False, reason="trading halted (MDD/cooldown)")
+
+        if self._open_position_count >= self.max_open_positions:
+            return RiskDecision(False, reason=f"max open positions ({self.max_open_positions}) reached")
 
         if self.check_flash_crash(df):
             return RiskDecision(False, reason="flash-crash kill switch")
