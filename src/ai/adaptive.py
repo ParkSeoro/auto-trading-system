@@ -251,6 +251,27 @@ class AdaptiveEnsembleStrategy(Strategy):
         rewards, max_id = compute_strategy_rewards(self.db_path, self._last_trade_id)
         if not rewards or max_id <= self._last_trade_id:
             return self.weights
+
+        # Cross-reference with trade analyzer for deeper feedback
+        try:
+            from src.ai.trade_analyzer import TradeAnalyzer
+            analyzer = TradeAnalyzer(db_path=self.db_path)
+            analyzer.update()
+            # Penalise strategies with negative expectancy or loss streaks
+            for name in list(rewards.keys()):
+                for key, stat in analyzer.stats.items():
+                    _, strat_name = key.split("|", 1) if "|" in key else ("", key)
+                    if strat_name == name and stat.total_trades >= 3:
+                        # Amplify negative rewards for strategies on loss streaks
+                        if stat.current_streak < -2 and rewards[name] < 0:
+                            rewards[name] = max(-1.0, rewards[name] * 1.5)
+                            log.info("Amplified penalty for %s (streak=%d)", name, stat.current_streak)
+                        # Slightly boost strategies with positive expectancy
+                        elif stat.expectancy() > 0 and rewards[name] > 0:
+                            rewards[name] = min(1.0, rewards[name] * 1.2)
+        except Exception as exc:
+            log.debug("trade analyzer feedback skipped: %s", exc)
+
         self.weights = hedge_update(self.weights, rewards, eta=self.eta)
         self._last_trade_id = max_id
         self.store.save(self.weights, self._last_trade_id)

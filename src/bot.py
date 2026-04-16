@@ -4,10 +4,13 @@ Lifecycle per tick (default 60 s):
   1. Fetch fresh OHLCV (daily + hourly for multi-TF).
   2. Check flash-crash kill switch / daily MDD halt.
   3. For each managed market: check stop-loss / take-profit.
-  4. Ask strategy for a Signal.
-  5. If BUY: risk-size the position, place a market buy.
+  4. Update trailing stops on open positions.
+  5. Consult TradeAnalyzer for confidence/size adjustments.
+  6. Ask strategy for a Signal.
+  7. If BUY: risk-size with feedback adjustments, place a market buy.
      If SELL: close the position at market.
-  6. Log trade & equity to SQLite.
+  8. Log trade & equity to SQLite.
+  9. Periodically re-screen markets and re-analyze outcomes.
 
 Paper mode is the default and completely safe; switch to live by setting
 TRADING_MODE=live in `.env` or via CLI.
@@ -20,10 +23,12 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from config.settings import settings
+from src.ai.trade_analyzer import TradeAnalyzer
 from src.data import MarketData
 from src.exchanges.base import Exchange
 from src.execution import Executor
 from src.risk import RiskManager
+from src.screener import MarketScreener
 from src.storage import TradeLog
 from src.strategies import Strategy, get_strategy
 from src.strategies.base import SignalType
@@ -47,13 +52,20 @@ class TradingBot:
     market_data: MarketData = field(init=False)
     risk: RiskManager = field(init=False)
     trade_log: TradeLog = field(init=False)
+    analyzer: TradeAnalyzer = field(init=False)
+    screener: MarketScreener = field(init=False)
     _running: bool = field(default=False, init=False)
+    _tick_count: int = field(default=0, init=False)
+    _analyze_every: int = 10       # run analyzer every N ticks
+    _screen_every: int = 60        # re-screen markets every N ticks
 
     def __post_init__(self):
         self.executor = Executor(exchange=self.exchange, mode=self.mode)
         self.market_data = MarketData(exchange=self.exchange, ttl_sec=15)
         self.risk = RiskManager(capital=self.starting_capital)
         self.trade_log = TradeLog(settings.db_path)
+        self.analyzer = TradeAnalyzer()
+        self.screener = MarketScreener()
 
     # ------------------------------------------------------------------
     # Bot loop
@@ -78,8 +90,19 @@ class TradingBot:
             send_alert("Crypto bot stopped.")
 
     def tick(self) -> None:
+        self._tick_count += 1
+
         if self.mode == "live":
             self.executor.sync_live_positions()
+
+        # Periodically update trade analyzer (learn from outcomes)
+        if self._tick_count % self._analyze_every == 0:
+            try:
+                self.analyzer.update()
+                log.debug("Trade analyzer updated: %d strategies tracked",
+                          len(self.analyzer.stats))
+            except Exception as exc:
+                log.warning("analyzer update failed: %s", exc)
 
         # Compute current equity for risk tracking
         prices = {}
@@ -123,11 +146,32 @@ class TradingBot:
 
         # Stop-loss / take-profit (pre-strategy, hard rules)
         if position and position.quantity > 0:
+            # Update trailing stop-loss (ratchets up, never down)
+            new_sl = self.risk.update_trailing_stop(
+                market, current_price, pos_dict, df=df,
+            )
+            if new_sl is not None:
+                self.executor.set_stop_take(market, stop_loss=new_sl, take_profit=pos_dict.get("take_profit"))
+                pos_dict["stop_loss"] = new_sl
+
+            # Dynamic SL/TP tightening based on current volatility
+            adj = self.risk.dynamic_adjust_stops(market, pos_dict, df)
+            if adj is not None:
+                self.executor.set_stop_take(
+                    market,
+                    stop_loss=adj["stop_loss"],
+                    take_profit=adj["take_profit"],
+                )
+                pos_dict["stop_loss"] = adj["stop_loss"]
+                pos_dict["take_profit"] = adj["take_profit"]
+
             if RiskManager.should_stop_out(current_price, pos_dict):
                 self._execute_sell(market, position.quantity, current_price, reason="stop_loss")
+                self.risk.clear_position_peak(market)
                 return
             if RiskManager.should_take_profit(current_price, pos_dict):
                 self._execute_sell(market, position.quantity, current_price, reason="take_profit")
+                self.risk.clear_position_peak(market)
                 return
 
         # Flash-crash kill switch on fine-grained bars
@@ -135,15 +179,36 @@ class TradingBot:
         if not fine_df.empty and self.risk.check_flash_crash(fine_df):
             if position and position.quantity > 0:
                 self._execute_sell(market, position.quantity, current_price, reason="flash_crash")
+                self.risk.clear_position_peak(market)
             return
 
         signal = self.strategy.generate(df, position=pos_dict)
         log.debug("signal %s on %s: %s %s", self.strategy.name, market, signal.type.value, signal.reason)
 
         if signal.type == SignalType.BUY and (not position or position.quantity == 0):
+            # Consult trade analyzer: should we skip this trade?
+            should_skip, skip_reason = self.analyzer.should_skip_trade(
+                market, self.strategy.name,
+            )
+            if should_skip:
+                log.info("BUY skipped on %s: %s", market, skip_reason)
+                return
+
+            # Get feedback adjustments from past trade analysis
+            conf_adj = self.analyzer.get_confidence_adjustment(
+                market, self.strategy.name,
+            )
+            size_adj = self.analyzer.get_size_adjustment(
+                market, self.strategy.name,
+            )
+
             available_cash = self._available_cash()
-            decision = self.risk.evaluate_entry(
-                df, confidence=signal.confidence, available_krw=available_cash
+            decision = self.risk.evaluate_entry_with_feedback(
+                df,
+                confidence=signal.confidence,
+                available_krw=available_cash,
+                confidence_adj=conf_adj,
+                size_adj=size_adj,
             )
             if not decision.approved:
                 log.info("BUY rejected on %s: %s", market, decision.reason)
@@ -159,6 +224,7 @@ class TradingBot:
 
         elif signal.type == SignalType.SELL and position and position.quantity > 0:
             self._execute_sell(market, position.quantity, current_price, reason=signal.reason)
+            self.risk.clear_position_peak(market)
 
     # ------------------------------------------------------------------
     # Execution helpers

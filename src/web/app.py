@@ -433,6 +433,51 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         }
 
     # ------------------------------------------------------------------
+    # Trade analysis — feedback from past trades
+    # ------------------------------------------------------------------
+    @app.get("/api/trade_analysis")
+    def api_trade_analysis():
+        from src.ai.trade_analyzer import TradeAnalyzer
+        try:
+            analyzer = TradeAnalyzer()
+            analyzer.update()
+            return {"stats": analyzer.get_all_stats()}
+        except Exception as exc:
+            return {"stats": {}, "error": str(exc)}
+
+    # ------------------------------------------------------------------
+    # Market screener — score and rank candidate markets
+    # ------------------------------------------------------------------
+    @app.get("/api/screener")
+    def api_screener(
+        markets: str = "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE,KRW-ADA",
+        timeframe: str = "1d",
+        count: int = 100,
+        exchange: Optional[str] = None,
+    ):
+        from src.screener import MarketScreener
+        try:
+            ex = build_exchange(exchange)
+            screener = MarketScreener()
+            market_data = {}
+            for m in [s.strip().upper() for s in markets.split(",") if s.strip()]:
+                try:
+                    candles = ex.fetch_ohlcv(m, timeframe=timeframe, count=count)
+                    df = candles_to_dataframe(candles)
+                    if not df.empty:
+                        market_data[m] = df
+                except Exception:
+                    pass
+            scores = screener.rank_markets(market_data)
+            return {
+                "exchange": ex.name,
+                "timeframe": timeframe,
+                "scores": [s.to_dict() for s in scores],
+            }
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"screener failed: {exc}")
+
+    # ------------------------------------------------------------------
     # Bot lifecycle
     # ------------------------------------------------------------------
     @app.post("/api/start")
