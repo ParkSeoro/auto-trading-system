@@ -13,6 +13,24 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 
+set PY=".venv\Scripts\python.exe"
+
+REM --- Ensure web deps are present (auto-install if missing) ---
+%PY% -c "import fastapi, uvicorn" >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [INFO] Web dependencies missing. Installing fastapi / uvicorn ...
+    echo.
+    call %PY% -m pip install --upgrade pip >nul
+    call %PY% -m pip install -r requirements.txt
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] Install failed. Check your internet connection and retry.
+        pause
+        exit /b 1
+    )
+)
+
 set HOST=%1
 if "%HOST%"=="" set HOST=127.0.0.1
 set PORT=%2
@@ -27,5 +45,5 @@ echo ================================================================
 echo.
 
 start "" "http://%HOST%:%PORT%"
-call ".venv\Scripts\python.exe" -m scripts.run_web --host %HOST% --port %PORT%
+call %PY% -m scripts.run_web --host %HOST% --port %PORT%
 pause

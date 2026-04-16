@@ -26,7 +26,11 @@ def main() -> int:
     try:
         import uvicorn
     except ImportError:
-        print("[ERROR] fastapi/uvicorn missing. Run: pip install -r requirements.txt")
+        print("[ERROR] fastapi/uvicorn missing.")
+        print("  Windows: run 'run_web.bat' (auto-installs deps), or re-run install.bat")
+        print("  macOS/Linux: ./run_web.sh  (auto-installs deps)")
+        print("  Manual:  .venv\\Scripts\\python.exe -m pip install -r requirements.txt  (Windows)")
+        print("           .venv/bin/python    -m pip install -r requirements.txt  (Unix)")
         return 1
 
     from src.web import create_app  # lazy import so --help works without deps
