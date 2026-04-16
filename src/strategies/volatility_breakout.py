@@ -20,7 +20,7 @@ from src.strategies.base import Signal, SignalType, Strategy
 class VolatilityBreakoutStrategy(Strategy):
     name = "volatility_breakout"
 
-    def __init__(self, k: float = 0.5, volume_factor: float = 1.0):
+    def __init__(self, k: float = 0.4, volume_factor: float = 0.8):
         """
         :param k: breakout coefficient (0.3–0.7 typical for crypto).
         :param volume_factor: today's volume must exceed 20-bar avg * this.

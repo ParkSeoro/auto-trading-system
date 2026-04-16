@@ -111,8 +111,8 @@ def test_adaptive_ensemble_uses_equal_weights_initially(tmp_path):
         weights_path=tmp_path / "w.json",
         db_path=tmp_path / "missing.sqlite",
     )
-    # Three default members -> ~1/3 each
-    assert len(strat.weights) == 3
+    # Five default members -> ~1/5 each
+    assert len(strat.weights) == 5
     assert pytest.approx(sum(strat.weights.values()), rel=1e-6) == 1.0
     for v in strat.weights.values():
         assert 0.0 < v < 1.0

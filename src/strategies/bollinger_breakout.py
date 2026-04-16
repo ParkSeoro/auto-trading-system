@@ -21,8 +21,8 @@ class BollingerBreakoutStrategy(Strategy):
         self,
         period: int = 20,
         num_std: float = 2.0,
-        squeeze_pct: float = 0.04,       # bandwidth/middle threshold for squeeze
-        volume_factor: float = 1.2,
+        squeeze_pct: float = 0.06,       # bandwidth/middle threshold for squeeze
+        volume_factor: float = 0.9,
     ):
         self.period = period
         self.num_std = num_std

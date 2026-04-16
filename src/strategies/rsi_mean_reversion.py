@@ -21,8 +21,8 @@ class RSIMeanReversionStrategy(Strategy):
     def __init__(
         self,
         period: int = 14,
-        oversold: float = 25.0,
-        overbought: float = 75.0,
+        oversold: float = 35.0,
+        overbought: float = 70.0,
         confirm_bars: int = 1,
     ):
         self.period = period

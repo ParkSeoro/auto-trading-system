@@ -4,6 +4,8 @@ from src.strategies.rsi_mean_reversion import RSIMeanReversionStrategy  # noqa: 
 from src.strategies.bollinger_breakout import BollingerBreakoutStrategy  # noqa: F401
 from src.strategies.grid_trading import GridTradingStrategy  # noqa: F401
 from src.strategies.ensemble import EnsembleStrategy  # noqa: F401
+from src.strategies.macd_crossover import MACDCrossoverStrategy  # noqa: F401
+from src.strategies.multi_tf_momentum import MultiTFMomentumStrategy  # noqa: F401
 
 
 STRATEGY_REGISTRY = {
@@ -12,6 +14,8 @@ STRATEGY_REGISTRY = {
     "bollinger_breakout": BollingerBreakoutStrategy,
     "grid": GridTradingStrategy,
     "ensemble": EnsembleStrategy,
+    "macd_crossover": MACDCrossoverStrategy,
+    "multi_tf_momentum": MultiTFMomentumStrategy,
 }
 
 

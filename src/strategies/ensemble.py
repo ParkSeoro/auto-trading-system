@@ -14,16 +14,20 @@ from src.strategies.base import Signal, SignalType, Strategy
 from src.strategies.volatility_breakout import VolatilityBreakoutStrategy
 from src.strategies.rsi_mean_reversion import RSIMeanReversionStrategy
 from src.strategies.bollinger_breakout import BollingerBreakoutStrategy
+from src.strategies.macd_crossover import MACDCrossoverStrategy
+from src.strategies.multi_tf_momentum import MultiTFMomentumStrategy
 
 
 class EnsembleStrategy(Strategy):
     name = "ensemble"
 
-    def __init__(self, members: Optional[List[Strategy]] = None, buy_threshold: float = 0.6):
+    def __init__(self, members: Optional[List[Strategy]] = None, buy_threshold: float = 0.35):
         self.members: List[Strategy] = members or [
             VolatilityBreakoutStrategy(k=0.5),
             RSIMeanReversionStrategy(),
             BollingerBreakoutStrategy(),
+            MACDCrossoverStrategy(),
+            MultiTFMomentumStrategy(),
         ]
         self.buy_threshold = buy_threshold
         self.required_bars = max((m.required_bars for m in self.members), default=50)

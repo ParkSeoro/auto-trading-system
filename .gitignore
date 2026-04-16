@@ -34,3 +34,4 @@ logs/
 
 # Backtest artifacts
 backtest_results/
+data/

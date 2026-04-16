@@ -38,6 +38,8 @@ from src.strategies.base import Signal, SignalType, Strategy
 from src.strategies.volatility_breakout import VolatilityBreakoutStrategy
 from src.strategies.rsi_mean_reversion import RSIMeanReversionStrategy
 from src.strategies.bollinger_breakout import BollingerBreakoutStrategy
+from src.strategies.macd_crossover import MACDCrossoverStrategy
+from src.strategies.multi_tf_momentum import MultiTFMomentumStrategy
 from src.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -211,7 +213,7 @@ class AdaptiveEnsembleStrategy(Strategy):
     def __init__(
         self,
         members: Optional[List[Strategy]] = None,
-        buy_threshold: float = 0.55,
+        buy_threshold: float = 0.35,
         eta: float = 0.5,
         adapt_every: int = 10,
         weights_path: Optional[Path] = None,
@@ -221,6 +223,8 @@ class AdaptiveEnsembleStrategy(Strategy):
             VolatilityBreakoutStrategy(k=0.5),
             RSIMeanReversionStrategy(),
             BollingerBreakoutStrategy(),
+            MACDCrossoverStrategy(),
+            MultiTFMomentumStrategy(),
         ]
         self.buy_threshold = buy_threshold
         self.eta = eta
