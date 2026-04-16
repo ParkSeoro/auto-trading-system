@@ -14,108 +14,253 @@
       <span class="tag" id="tag-exchange">bithumb</span>
       <span class="tag" id="tag-mode">paper</span>
     </div>
-    <div class="status-pill" id="status-pill">IDLE</div>
+    <div class="center">
+      <div class="status-pill" id="status-pill">IDLE</div>
+      <div class="mini-kpi"><small>자산</small><span id="mini-equity">–</span></div>
+      <div class="mini-kpi"><small>일일 수익률</small><span id="mini-ret">–</span></div>
+      <div class="mini-kpi"><small>현재 DD</small><span id="mini-dd">–</span></div>
+    </div>
     <div class="server-time" id="server-time">–</div>
   </header>
 
-  <main class="grid">
-    <!-- Controls card -->
-    <section class="card controls">
-      <h2>제어판</h2>
-      <div class="row">
-        <label>거래소
-          <select id="sel-exchange">
-            <option value="">(.env 기본값)</option>
-            <option value="bithumb">Bithumb</option>
-            <option value="upbit">Upbit</option>
-          </select>
-        </label>
-        <label>모드
-          <select id="sel-mode">
-            <option value="paper" selected>Paper (모의)</option>
-            <option value="live">LIVE (실거래)</option>
-          </select>
-        </label>
+  <!-- =================== Controls row =================== -->
+  <section class="card controls-card">
+    <div class="card-head">
+      <h2>🎛️ 제어판 <small>봇을 시작/중지하고, 전략과 종목을 선택합니다.</small></h2>
+    </div>
+    <div class="controls-grid">
+      <label>거래소
+        <select id="sel-exchange">
+          <option value="">(.env 기본값)</option>
+          <option value="bithumb">Bithumb</option>
+          <option value="upbit">Upbit</option>
+        </select>
+      </label>
+      <label>모드
+        <select id="sel-mode">
+          <option value="paper" selected>Paper (모의)</option>
+          <option value="live">LIVE (실거래)</option>
+        </select>
+      </label>
+      <label>종목 (쉼표 구분)
+        <input id="inp-markets" value="KRW-BTC,KRW-ETH" />
+      </label>
+      <label>타임프레임
+        <select id="sel-tf">
+          <option>1m</option><option>5m</option><option>15m</option>
+          <option>30m</option><option>1h</option><option>4h</option>
+          <option selected>1d</option>
+        </select>
+      </label>
+      <label>전략
+        <select id="sel-strategy">
+          <option value="adaptive_ensemble" selected>Adaptive Ensemble (AI 자가진화)</option>
+          <option value="ensemble">Ensemble (고정)</option>
+          <option value="volatility_breakout">Volatility Breakout</option>
+          <option value="rsi_mean_reversion">RSI Mean Reversion</option>
+          <option value="bollinger_breakout">Bollinger Breakout</option>
+          <option value="grid">Grid</option>
+        </select>
+      </label>
+      <div class="btnrow">
+        <button id="btn-start" class="btn btn-primary">▶ 시작</button>
+        <button id="btn-stop" class="btn btn-danger">■ 중지</button>
       </div>
-      <div class="row">
-        <label>종목 (쉼표 구분)
-          <input id="inp-markets" value="KRW-BTC" />
-        </label>
-        <label>타임프레임
-          <select id="sel-tf">
-            <option>1m</option><option>5m</option><option>15m</option>
-            <option>30m</option><option>1h</option><option>4h</option>
-            <option selected>1d</option>
-          </select>
-        </label>
-      </div>
-      <div class="row">
-        <label>전략
-          <select id="sel-strategy">
-            <option value="adaptive_ensemble" selected>Adaptive Ensemble (AI 자가진화)</option>
-            <option value="ensemble">Ensemble (고정)</option>
-            <option value="volatility_breakout">Volatility Breakout</option>
-            <option value="rsi_mean_reversion">RSI Mean Reversion</option>
-            <option value="bollinger_breakout">Bollinger Breakout</option>
-            <option value="grid">Grid</option>
-          </select>
-        </label>
-      </div>
-      <div class="row btnrow">
-        <button id="btn-start" class="btn btn-primary">시작</button>
-        <button id="btn-stop" class="btn btn-danger">중지</button>
-      </div>
-      <div class="hint" id="hint">준비.</div>
-    </section>
+    </div>
+    <div class="hint" id="hint">준비됨. 페이퍼 모드로 시작하면 가상자본으로 안전하게 체험할 수 있습니다.</div>
+  </section>
 
-    <!-- Equity chart -->
-    <section class="card chart">
-      <h2>자산 곡선 (Equity)</h2>
-      <canvas id="eqchart" height="180"></canvas>
+  <!-- =================== Analytics KPIs =================== -->
+  <section class="kpis">
+    <div class="kpi"><small>총 수익률</small><span id="kpi-total-return">–</span></div>
+    <div class="kpi"><small>샤프</small><span id="kpi-sharpe">–</span></div>
+    <div class="kpi"><small>최대 낙폭 (MDD)</small><span id="kpi-mdd">–</span></div>
+    <div class="kpi"><small>승률</small><span id="kpi-winrate">–</span></div>
+    <div class="kpi"><small>손익비 (PF)</small><span id="kpi-pf">–</span></div>
+    <div class="kpi"><small>거래 수</small><span id="kpi-trades">0</span></div>
+    <div class="kpi"><small>실현 PnL</small><span id="kpi-realised">–</span></div>
+    <div class="kpi"><small>기대값 / 거래</small><span id="kpi-expect">–</span></div>
+  </section>
+
+  <!-- =================== Equity + Price chart row =================== -->
+  <section class="grid-2">
+    <div class="card">
+      <div class="card-head">
+        <h2>📈 자산 곡선 (Equity)
+          <small>봇이 시작된 이후 전체 자산(현금 + 포지션)의 변화입니다.</small>
+        </h2>
+      </div>
+      <canvas id="eqchart" height="220"></canvas>
       <div class="stats">
         <div><small>현재 자산</small><span id="kpi-equity">–</span></div>
         <div><small>현금</small><span id="kpi-cash">–</span></div>
-        <div><small>거래 수</small><span id="kpi-trades">0</span></div>
+        <div><small>시작 자본</small><span id="kpi-start">–</span></div>
       </div>
-    </section>
+    </div>
 
-    <!-- AI weights -->
-    <section class="card ai">
-      <h2>AI 가중치 <small>(Hedge 학습)</small></h2>
+    <div class="card">
+      <div class="card-head">
+        <h2>🕯️ 가격 + 인디케이터
+          <small id="chart-subtitle">선택한 종목의 캔들·RSI·볼린저 밴드.</small>
+        </h2>
+        <div class="card-tools">
+          <select id="chart-market">
+            <option>KRW-BTC</option>
+            <option>KRW-ETH</option>
+            <option>KRW-XRP</option>
+            <option>KRW-SOL</option>
+          </select>
+          <select id="chart-tf">
+            <option>1h</option><option>4h</option>
+            <option selected>1d</option>
+          </select>
+          <button id="btn-refresh-chart" class="btn-mini">↻</button>
+        </div>
+      </div>
+      <canvas id="pricechart" height="180"></canvas>
+      <canvas id="rsichart" height="60"></canvas>
+    </div>
+  </section>
+
+  <!-- =================== Signals + Watchlist =================== -->
+  <section class="grid-2">
+    <div class="card">
+      <div class="card-head">
+        <h2>🧠 전략별 실시간 판단
+          <small>각 전략이 지금 시장을 어떻게 보는지 투명하게 보여줍니다.</small>
+        </h2>
+        <div class="card-tools">
+          <select id="sig-market">
+            <option>KRW-BTC</option>
+            <option>KRW-ETH</option>
+            <option>KRW-XRP</option>
+            <option>KRW-SOL</option>
+          </select>
+          <select id="sig-tf">
+            <option>1h</option><option>4h</option>
+            <option selected>1d</option>
+          </select>
+          <button id="btn-refresh-sig" class="btn-mini">↻</button>
+        </div>
+      </div>
+      <div id="signals-body" class="signals-list">
+        <div class="muted">종목을 선택하고 새로고침을 눌러보세요.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>👀 관심 종목
+          <small>여러 종목의 현재 시세를 한눈에.</small>
+        </h2>
+        <button id="btn-refresh-watchlist" class="btn-mini">↻</button>
+      </div>
+      <table class="compact">
+        <thead>
+          <tr><th>Market</th><th>현재가</th><th>고가</th><th>저가</th><th>거래량</th></tr>
+        </thead>
+        <tbody id="watchlist-body">
+          <tr><td colspan="5" class="muted">불러오는 중...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- =================== AI weights + Backtest =================== -->
+  <section class="grid-2">
+    <div class="card">
+      <div class="card-head">
+        <h2>🤖 AI 가중치 <small>거래할수록 승자 전략의 비중이 자동으로 커집니다 (Hedge).</small></h2>
+      </div>
       <div id="weights-box" class="weights-box">아직 학습 데이터가 없습니다.</div>
-      <h3>진화된 파라미터</h3>
+      <h3>🧬 진화된 파라미터</h3>
       <pre id="best-params">{}</pre>
-    </section>
+    </div>
 
-    <!-- Positions -->
-    <section class="card positions">
-      <h2>포지션</h2>
-      <table>
-        <thead>
-          <tr><th>Market</th><th>수량</th><th>평단</th><th>SL</th><th>TP</th></tr>
-        </thead>
-        <tbody id="positions-body">
-          <tr><td colspan="5" class="muted">열린 포지션 없음</td></tr>
-        </tbody>
-      </table>
-    </section>
+    <div class="card">
+      <div class="card-head">
+        <h2>🧪 백테스트 <small>과거 데이터로 전략을 시뮬레이션합니다.</small></h2>
+      </div>
+      <div class="bt-grid">
+        <label>종목<input id="bt-market" value="KRW-BTC" /></label>
+        <label>전략
+          <select id="bt-strategy">
+            <option value="volatility_breakout" selected>Volatility Breakout</option>
+            <option value="rsi_mean_reversion">RSI Mean Reversion</option>
+            <option value="bollinger_breakout">Bollinger Breakout</option>
+            <option value="grid">Grid</option>
+            <option value="ensemble">Ensemble</option>
+            <option value="adaptive_ensemble">Adaptive Ensemble</option>
+          </select>
+        </label>
+        <label>타임프레임
+          <select id="bt-tf">
+            <option>1h</option><option>4h</option><option selected>1d</option>
+          </select>
+        </label>
+        <label>캔들 수<input id="bt-count" type="number" value="500" /></label>
+        <label>자본 (KRW)<input id="bt-capital" type="number" value="1000000" /></label>
+        <div class="bt-btn">
+          <button id="btn-run-bt" class="btn btn-primary">▶ 백테스트 실행</button>
+        </div>
+      </div>
+      <div id="bt-result" class="bt-result muted">결과는 여기에 표시됩니다.</div>
+      <canvas id="btchart" height="120"></canvas>
+    </div>
+  </section>
 
-    <!-- Trades -->
-    <section class="card trades">
-      <h2>최근 거래</h2>
-      <table>
-        <thead>
-          <tr><th>시각</th><th>Market</th><th>Side</th><th>수량</th><th>가격</th><th>수수료</th><th>Strategy</th><th>사유</th></tr>
-        </thead>
-        <tbody id="trades-body">
-          <tr><td colspan="8" class="muted">거래 내역 없음</td></tr>
-        </tbody>
-      </table>
-    </section>
-  </main>
+  <!-- =================== Positions =================== -->
+  <section class="card">
+    <div class="card-head">
+      <h2>💼 포지션 <small>열려 있는 매수 잔고와 평단/손절/익절.</small></h2>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Market</th><th>수량</th><th>평단</th>
+          <th>현재가</th><th>미실현 PnL</th>
+          <th>SL</th><th>TP</th>
+        </tr>
+      </thead>
+      <tbody id="positions-body">
+        <tr><td colspan="7" class="muted">열린 포지션 없음</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- =================== Live activity log =================== -->
+  <section class="card">
+    <div class="card-head">
+      <h2>📜 봇 활동 로그 <small>봇이 지금 무엇을 하는지 실시간으로 보여줍니다.</small></h2>
+      <div class="card-tools">
+        <label class="inline">
+          <input type="checkbox" id="log-autoscroll" checked /> 자동 스크롤
+        </label>
+      </div>
+    </div>
+    <div id="logs-box" class="logs-box">
+      <div class="log-line muted">로그를 기다리는 중...</div>
+    </div>
+  </section>
+
+  <!-- =================== Trades =================== -->
+  <section class="card">
+    <div class="card-head">
+      <h2>🧾 최근 거래 <small>체결된 모든 매수·매도 기록과 사유.</small></h2>
+    </div>
+    <table>
+      <thead>
+        <tr><th>시각</th><th>Market</th><th>Side</th><th>수량</th><th>가격</th><th>수수료</th><th>전략</th><th>사유</th></tr>
+      </thead>
+      <tbody id="trades-body">
+        <tr><td colspan="8" class="muted">거래 내역 없음</td></tr>
+      </tbody>
+    </table>
+  </section>
 
   <footer>
-    Crypto Auto-Trading System · FastAPI · AI 자가진화 · Bithumb/Upbit
+    Crypto Auto-Trading System · FastAPI · AI 자가진화 · Bithumb/Upbit ·
+    <span id="footer-status">대기 중</span>
   </footer>
 
   <script src="/static/app.js"></script>

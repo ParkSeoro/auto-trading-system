@@ -43,6 +43,14 @@ def get_logger(name: str = "crypto_bot") -> logging.Logger:
             # running in a restricted env - stream only
             pass
 
+        # In-memory ring buffer so the web dashboard can show live activity.
+        try:
+            from src.utils.log_buffer import attach_to_root
+            attach_to_root(level=root.level or logging.INFO)
+        except Exception:
+            # Best-effort — logging must never crash the app.
+            pass
+
         _initialized = True
 
     return logger
