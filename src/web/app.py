@@ -588,12 +588,21 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
             while True:
                 bot = mgr.current_bot()
                 auto_info = {}
-                if bot and bot.auto_discover:
-                    auto_info = {
-                        "auto_discover": True,
-                        "active_markets": list(bot._active_markets),
-                        "total_scored": len(bot._last_scores) if bot._last_scores else 0,
-                    }
+                positions = []
+                if bot:
+                    if bot.auto_discover:
+                        auto_info = {
+                            "auto_discover": True,
+                            "active_markets": list(bot._active_markets),
+                            "total_scored": len(bot._last_scores) if bot._last_scores else 0,
+                        }
+                    for mkt in bot._active_markets:
+                        pos = bot.executor.get_position(mkt)
+                        if pos is None:
+                            continue
+                        d = pos.to_dict()
+                        d["market"] = mkt
+                        positions.append(d)
                 payload = {
                     "type": "tick",
                     "ts": datetime.now(KST).isoformat(),
@@ -601,6 +610,7 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                     "equity_tail": _read_equity(limit=50),
                     "trades_tail": _read_trades(limit=10),
                     "weights": _read_weights(),
+                    "positions": positions,
                     "logs": LOG_BUFFER.tail(limit=30),
                     **auto_info,
                 }

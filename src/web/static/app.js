@@ -174,9 +174,11 @@ function renderTrades(rows) {
 }
 
 function renderWeights(w) {
-  const weights = w.weights || w || {};
+  const raw = w.weights || {};
+  const weights = (typeof raw === "object" && raw.weights && typeof raw.weights === "object")
+    ? raw.weights : raw;
   const box = $("weights-box");
-  const entries = Object.entries(weights);
+  const entries = Object.entries(weights).filter(([k]) => typeof weights[k] === "number");
   if (!entries.length) {
     box.innerHTML = '<div class="muted">거래가 일정량 쌓이면 자동으로 학습됩니다.</div>';
   } else {
@@ -188,8 +190,28 @@ function renderWeights(w) {
       </div><div class="weight-label">${p.toFixed(1)}%</div></div>`;
     }).join("");
   }
-  const bp = w.best_params || (typeof w === "object" ? {} : {});
+  const bp = w.best_params || {};
   $("best-params").textContent = JSON.stringify(bp, null, 2);
+}
+
+const COIN_NAMES = {
+  "BTC":"비트코인","ETH":"이더리움","XRP":"리플","SOL":"솔라나","DOGE":"도지코인",
+  "ADA":"에이다","AVAX":"아발란체","DOT":"폴카닷","LINK":"체인링크","MATIC":"폴리곤",
+  "SHIB":"시바이누","TRX":"트론","UNI":"유니스왑","BCH":"비트코인캐시","LTC":"라이트코인",
+  "NEAR":"니어","APT":"앱토스","FIL":"파일코인","ATOM":"코스모스","ARB":"아비트럼",
+  "ETC":"이더리움클래식","OP":"옵티미즘","SAND":"샌드박스","MANA":"디센트럴랜드",
+  "AAVE":"에이브","GRT":"더그래프","IMX":"이뮤터블X","EOS":"이오스","XLM":"스텔라루멘",
+  "ALGO":"알고랜드","AXS":"엑시인피니티","HBAR":"헤데라","THETA":"쎄타","ZIL":"질리카",
+  "ENJ":"엔진코인","IOTA":"아이오타","CHZ":"칠리즈","KAIA":"카이아","BTR":"비트러시",
+  "CUDIS":"쿠디스","MAPO":"맵프로토콜","AL":"알레프","SOON":"순","SPK":"스파크",
+  "IRYS":"아이리스","SKR":"사쿠라","HIGH":"하이스트리트","MERL":"멀린",
+  "SUI":"수이","SEI":"세이","STX":"스택스","RENDER":"렌더","INJ":"인젝티브",
+  "PEPE":"페페","WLD":"월드코인","BLUR":"블러","JUP":"주피터","PYTH":"피스",
+  "XVS":"비너스","COMP":"컴파운드","CRV":"커브","SNX":"신세틱스",
+};
+function coinName(market) {
+  const code = (market || "").replace("KRW-", "");
+  return COIN_NAMES[code] || code;
 }
 
 function renderPositions(rows) {
@@ -200,8 +222,9 @@ function renderPositions(rows) {
   body.innerHTML = rows.map(p => {
     const upnl = p.unrealised_pnl;
     const cls = upnl > 0 ? "pnl-pos" : upnl < 0 ? "pnl-neg" : "";
+    const name = coinName(p.market);
     return `<tr>
-      <td>${p.market}</td>
+      <td><b>${p.market}</b><br><small style="color:var(--muted)">${name}</small></td>
       <td>${Number(p.quantity || 0).toFixed(8)}</td>
       <td>${fmt(p.avg_price, 0)}</td>
       <td>${p.current_price ? fmt(p.current_price, 0) : "–"}</td>
@@ -489,8 +512,8 @@ function connectWS() {
         renderEquity(d.equity_tail || []);
         renderTrades(d.trades_tail || []);
         renderWeights({ weights: d.weights || {} });
+        renderPositions(d.positions || []);
         renderLogs(d.logs || []);
-        // Push auto-discovery data from ws payload if available
         if (d.auto_discover) {
           renderAutoDiscovery({
             active: true,
@@ -573,6 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshWatchlist, 30000);
   setInterval(refreshChart, 60000);
   setInterval(() => fetchJSON("/api/analytics").then(renderAnalytics).catch(() => {}), 10000);
+  setInterval(() => fetchJSON("/api/positions").then(d => renderPositions(d.positions || [])).catch(() => {}), 5000);
   setInterval(refreshAutoDiscovery, 60000);
   setInterval(refreshDefensePanel, 5000);
   refreshDefensePanel();
