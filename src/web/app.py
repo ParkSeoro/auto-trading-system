@@ -498,6 +498,44 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
             raise HTTPException(status_code=502, detail=f"screener failed: {exc}")
 
     # ------------------------------------------------------------------
+    # Bot full status report (market states, defense, AI advice)
+    # ------------------------------------------------------------------
+    @app.get("/api/bot_report")
+    def api_bot_report():
+        bot = mgr.current_bot()
+        if bot is None:
+            return {"running": False}
+        return {
+            "running": True,
+            "defense": bot.defense.status_report(),
+            "market_states": bot._last_market_states,
+            "ai_advice": bot.claude.last_advice(),
+            "active_markets": list(bot._active_markets),
+            "strategy": bot.strategy.name,
+            "mode": bot.mode,
+        }
+
+    @app.get("/api/market_state")
+    def api_market_state(
+        market: str = "KRW-BTC",
+        timeframe: str = "1d",
+        count: int = 100,
+        exchange: Optional[str] = None,
+    ):
+        from src.ai.market_classifier import MarketClassifier
+        try:
+            ex = build_exchange(exchange)
+            candles = ex.fetch_ohlcv(market, timeframe=timeframe, count=count)
+            df = candles_to_dataframe(candles)
+            if df.empty:
+                return {"market": market, "error": "no data"}
+            clf = MarketClassifier()
+            analysis = clf.classify(df)
+            return {"market": market, "exchange": ex.name, **analysis.to_dict()}
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"market state failed: {exc}")
+
+    # ------------------------------------------------------------------
     # Live auto-discovery status
     # ------------------------------------------------------------------
     @app.get("/api/auto_discovery")

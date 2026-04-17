@@ -24,10 +24,14 @@ from typing import List, Optional
 
 from config.settings import settings
 from src.ai.trade_analyzer import TradeAnalyzer
+from src.ai.market_classifier import MarketClassifier, MarketAnalysis
+from src.ai.claude_advisor import ClaudeAdvisor
+from src.ai.auto_tuner import AutoTuner
 from src.data import MarketData
 from src.exchanges.base import Exchange
 from src.execution import Executor
 from src.risk import RiskManager
+from src.risk.defense_manager import DefenseManager, TradingMode
 from src.screener import MarketScreener
 from src.storage import TradeLog
 from src.strategies import Strategy, get_strategy
@@ -56,12 +60,17 @@ class TradingBot:
     trade_log: TradeLog = field(init=False)
     analyzer: TradeAnalyzer = field(init=False)
     screener: MarketScreener = field(init=False)
+    defense: DefenseManager = field(init=False)
+    classifier: MarketClassifier = field(init=False)
+    claude: ClaudeAdvisor = field(init=False)
+    tuner: AutoTuner = field(init=False)
     _running: bool = field(default=False, init=False)
     _tick_count: int = field(default=0, init=False)
     _analyze_every: int = 10       # run analyzer every N ticks
     _screen_every: int = 30        # re-screen markets every N ticks
     _active_markets: List[str] = field(default_factory=list, init=False)
     _last_scores: list = field(default_factory=list, init=False)
+    _last_market_states: dict = field(default_factory=dict, init=False)
 
     def __post_init__(self):
         self.executor = Executor(exchange=self.exchange, mode=self.mode)
@@ -70,6 +79,10 @@ class TradingBot:
         self.trade_log = TradeLog(settings.db_path)
         self.analyzer = TradeAnalyzer()
         self.screener = MarketScreener()
+        self.defense = DefenseManager()
+        self.classifier = MarketClassifier()
+        self.claude = ClaudeAdvisor()
+        self.tuner = AutoTuner()
         if not self.markets or self.markets == ["AUTO"]:
             self.auto_discover = True
             self.markets = []
@@ -138,6 +151,7 @@ class TradingBot:
 
         equity = self._current_equity(prices)
         self.risk.update_equity(equity)
+        defense_mode = self.defense.update_equity(equity)
 
         # Track open position count for max_open_positions limit
         open_count = sum(
@@ -152,7 +166,13 @@ class TradingBot:
         )
 
         if self.risk.is_halted():
-            log.info("Trading halted. Equity=%.0f KRW.", equity)
+            log.info("Trading halted (RiskManager). Equity=%.0f KRW.", equity)
+            return
+
+        # Defense halt check
+        can_enter, halt_reason = self.defense.can_enter()
+        if not can_enter:
+            log.info("Trading blocked (%s): %s", defense_mode, halt_reason)
             return
 
         for market in active:
@@ -258,10 +278,29 @@ class TradingBot:
                 self.risk.clear_position_peak(market)
             return
 
+        # Market state classification — blocks trades in bad regimes
+        mkt_analysis = self.classifier.classify(df)
+        self._last_market_states[market] = mkt_analysis.to_dict()
+
         signal = self.strategy.generate(df, position=pos_dict)
-        log.debug("signal %s on %s: %s %s", self.strategy.name, market, signal.type.value, signal.reason)
+        log.debug(
+            "signal %s on %s: %s %s | market=%s trade_ok=%s",
+            self.strategy.name, market, signal.type.value, signal.reason,
+            mkt_analysis.state.value, mkt_analysis.trade_allowed,
+        )
 
         if signal.type == SignalType.BUY and (not position or position.quantity == 0):
+            # Block entry in prohibited market regimes
+            if not mkt_analysis.trade_allowed:
+                log.info("BUY blocked on %s — %s", market, mkt_analysis.block_reason)
+                return
+
+            # Consult defense manager for halt/cooldown
+            can_enter, block_msg = self.defense.can_enter()
+            if not can_enter:
+                log.info("BUY blocked (defense): %s", block_msg)
+                return
+
             # Consult trade analyzer: should we skip this trade?
             should_skip, skip_reason = self.analyzer.should_skip_trade(
                 market, self.strategy.name,
@@ -277,6 +316,9 @@ class TradingBot:
             size_adj = self.analyzer.get_size_adjustment(
                 market, self.strategy.name,
             )
+            # Apply defense size multiplier (consecutive loss scaling)
+            defense_mult = self.defense.size_multiplier()
+            size_adj = size_adj * defense_mult
 
             available_cash = self._available_cash()
             decision = self.risk.evaluate_entry_with_feedback(
@@ -328,6 +370,12 @@ class TradingBot:
             )
 
     def _execute_sell(self, market, quantity, price, reason):
+        # Estimate PnL from position to update defense manager
+        position = self.executor.get_position(market)
+        estimated_pnl = 0.0
+        if position and position.avg_price > 0:
+            estimated_pnl = (price - position.avg_price) * quantity
+
         order = self.executor.market_sell(market=market, quantity=quantity, current_price=price)
         if order:
             self.trade_log.log_trade(
@@ -339,7 +387,13 @@ class TradingBot:
                 strategy=self.strategy.name, reason=reason,
                 order_id=order.id,
             )
-            send_alert(f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason}")
+            # Notify defense manager of outcome (updates consecutive loss counter)
+            self.defense.record_trade_outcome(estimated_pnl)
+            pnl_sign = "+" if estimated_pnl >= 0 else ""
+            send_alert(
+                f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason} | "
+                f"PnL≈{pnl_sign}{estimated_pnl:,.0f} KRW | mode={self.defense.mode}"
+            )
 
     # ------------------------------------------------------------------
     # Equity / cash helpers

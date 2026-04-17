@@ -62,6 +62,7 @@
       <label>전략
         <select id="sel-strategy">
           <option value="adaptive_ensemble" selected>Adaptive Ensemble (AI 자가진화)</option>
+          <option value="scalping">Scalping (초단타 · RSI+볼륨+캔들)</option>
           <option value="ensemble">Ensemble (고정)</option>
           <option value="multi_tf_momentum">Multi-TF Momentum</option>
           <option value="macd_crossover">MACD Crossover</option>
@@ -98,6 +99,30 @@
         <tr><td colspan="9" class="muted">봇을 시작하면 자동 스캔 결과가 표시됩니다.</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <!-- =================== Defense Mode + Market States =================== -->
+  <section class="grid-2">
+    <div class="card" id="defense-card">
+      <div class="card-head">
+        <h2>🛡️ 자율 통제 시스템 <small>손실 누적 시 자동으로 방어·중단·복구 모드로 전환합니다.</small></h2>
+      </div>
+      <div id="defense-body" class="defense-panel">
+        <div class="muted">봇 실행 중일 때 표시됩니다.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h2>📊 시장 상태 분류 <small>강한상승/약한상승/횡보/약한하락/강한하락 자동 판단</small></h2>
+        <div class="card-tools">
+          <select id="state-market"><option>KRW-BTC</option><option>KRW-ETH</option></select>
+          <button id="btn-refresh-state" class="btn-mini">↻</button>
+        </div>
+      </div>
+      <div id="market-state-body" class="market-state-panel">
+        <div class="muted">종목을 선택하고 새로고침하세요.</div>
+      </div>
+    </div>
   </section>
 
   <!-- =================== Analytics KPIs =================== -->

@@ -20,3 +20,6 @@ no external ML dependencies required.
 """
 from src.ai.evolver import StrategyEvolver  # noqa: F401
 from src.ai.adaptive import AdaptiveEnsembleStrategy, WeightStore  # noqa: F401
+from src.ai.market_classifier import MarketClassifier, MarketState  # noqa: F401
+from src.ai.claude_advisor import ClaudeAdvisor  # noqa: F401
+from src.ai.auto_tuner import AutoTuner  # noqa: F401

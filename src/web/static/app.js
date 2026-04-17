@@ -271,6 +271,74 @@ function renderLogs(logs) {
   if (autoScroll) box.scrollTop = box.scrollHeight;
 }
 
+function renderDefensePanel(report) {
+  const body = $("defense-body");
+  if (!body || !report || !report.running) return;
+  const d = report.defense || {};
+  const modeColors = { normal: "#54e07f", defense: "#ffd666", halt: "#ff6b7a", recovery: "#b08cff" };
+  const modeKr = { normal: "정상", defense: "방어 모드", halt: "거래 중단", recovery: "복구 모드" };
+  const modeKey = d.mode || "normal";
+  const color = modeColors[modeKey] || "#e8ecff";
+  const label = modeKr[modeKey] || modeKey;
+  const pnlPct = d.session_pnl_pct || 0;
+  const pnlColor = pnlPct >= 0 ? "#54e07f" : "#ff6b7a";
+  body.innerHTML = `
+    <div class="defense-status" style="border-color:${color}">
+      <div class="defense-mode" style="color:${color}">● ${label}</div>
+      <div class="defense-grid">
+        <div><small>일일 손익</small><span style="color:${pnlColor}">${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%</span></div>
+        <div><small>연속 손실</small><span style="color:${d.consecutive_losses > 0 ? '#ff6b7a' : '#54e07f'}">${d.consecutive_losses}회</span></div>
+        <div><small>연속 수익</small><span style="color:#54e07f">${d.consecutive_wins || 0}회</span></div>
+        <div><small>시작 자산</small><span>${fmt(d.starting_equity)}원</span></div>
+      </div>
+      ${d.halt_until ? `<div style="color:#ff6b7a;font-size:12px;margin-top:8px">중단: ${d.halt_reason} | 재개: ${(d.halt_until||'').slice(0,19).replace('T',' ')}</div>` : ''}
+    </div>
+    <div class="market-summary">
+      <small style="color:var(--muted)">활성 종목 (${(report.active_markets||[]).length}개)</small>
+      <div style="font-size:13px;margin-top:4px">${(report.active_markets||[]).join(' · ') || '–'}</div>
+    </div>`;
+}
+
+function renderMarketState(data) {
+  const body = $("market-state-body");
+  if (!body) return;
+  const stateColors = {
+    "강한_상승": "#54e07f", "약한_상승": "#a8f0c0",
+    "횡보": "#ffd666",
+    "약한_하락": "#ffb0b8", "강한_하락": "#ff6b7a",
+  };
+  const color = stateColors[data.state] || "#e8ecff";
+  const tradeIcon = data.trade_allowed ? "✅ 거래 가능" : `🚫 ${data.block_reason}`;
+  body.innerHTML = `
+    <div class="state-badge" style="background:${color}20;border:1px solid ${color};border-radius:8px;padding:10px 16px;margin-bottom:12px">
+      <div style="font-size:20px;font-weight:700;color:${color}">${data.state}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">${tradeIcon}</div>
+    </div>
+    <div class="defense-grid">
+      <div><small>RSI</small><span>${data.rsi}</span></div>
+      <div><small>ATR%</small><span>${data.atr_pct}%</span></div>
+      <div><small>거래량 비율</small><span>${data.volume_ratio}x</span></div>
+      <div><small>5봉 수익률</small><span>${data.return_5bar_pct >= 0 ? '+' : ''}${data.return_5bar_pct}%</span></div>
+      <div><small>변동성</small><span>${data.volatility}</span></div>
+      <div><small>거래량 추세</small><span>${data.volume_trend}</span></div>
+    </div>`;
+}
+
+async function refreshDefensePanel() {
+  try {
+    const d = await fetchJSON("/api/bot_report");
+    renderDefensePanel(d);
+  } catch (e) { console.error("defense", e); }
+}
+
+async function refreshMarketState() {
+  try {
+    const m = $("state-market").value;
+    const d = await fetchJSON(`/api/market_state?market=${m}&count=100`);
+    renderMarketState(d);
+  } catch (e) { console.error("market_state", e); }
+}
+
 function renderAutoDiscovery(data) {
   const body = $("discovery-body");
   const summary = $("discovery-summary");
@@ -469,6 +537,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnDisc = $("btn-refresh-discovery");
   if (btnDisc) btnDisc.addEventListener("click", refreshAutoDiscovery);
 
+  // Wire up defense / market state
+  const btnState = $("btn-refresh-state");
+  if (btnState) btnState.addEventListener("click", refreshMarketState);
+
   refreshSnapshot();
   refreshChart();
   refreshSignals();
@@ -480,6 +552,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshChart, 60000);
   setInterval(() => fetchJSON("/api/analytics").then(renderAnalytics).catch(() => {}), 10000);
   setInterval(refreshAutoDiscovery, 60000);
+  setInterval(refreshDefensePanel, 5000);
+  refreshDefensePanel();
+  refreshMarketState();
 
   window.addEventListener("resize", () => {
     fetchJSON("/api/equity").then(d => renderEquity(d.equity || []));

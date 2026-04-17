@@ -484,3 +484,29 @@ footer {
   .kpis { margin-left: 10px; margin-right: 10px; }
   .controls-card { margin-left: 10px; margin-right: 10px; }
 }
+
+/* ========== Defense panel ========== */
+.defense-panel { padding: 4px 0; }
+.defense-status {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.defense-mode { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+.defense-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+}
+.defense-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.defense-grid small { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.defense-grid span { font-size: 15px; font-weight: 600; }
+.market-summary { margin-top: 8px; }
+
+/* ========== Market state panel ========== */
+.market-state-panel { padding: 4px 0; }
