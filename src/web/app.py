@@ -57,10 +57,12 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 # ----------------------------------------------------------------------
 class StartRequest(BaseModel):
     mode: str = Field("paper", pattern="^(paper|live)$")
-    markets: List[str] = Field(default_factory=lambda: ["KRW-BTC"])
+    markets: List[str] = Field(default_factory=list)
     strategy: str = "adaptive_ensemble"
     timeframe: str = "1d"
     exchange: Optional[str] = None  # bithumb | upbit | None -> settings
+    auto_discover: bool = True
+    max_auto_markets: int = 10
 
 
 class BacktestRequest(BaseModel):
@@ -232,13 +234,12 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         if bot is None:
             return {"positions": []}
         out = []
-        for mkt in bot.markets:
+        for mkt in bot._active_markets:
             pos = bot.executor.get_position(mkt)
             if pos is None:
                 continue
             d = pos.to_dict()
             d["market"] = mkt
-            # Attach current market price if reachable
             try:
                 t = bot.exchange.get_ticker(mkt)
                 px = t.get("trade_price") or 0.0
@@ -450,32 +451,66 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
     # ------------------------------------------------------------------
     @app.get("/api/screener")
     def api_screener(
-        markets: str = "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE,KRW-ADA",
+        markets: str = "",
         timeframe: str = "1d",
         count: int = 100,
         exchange: Optional[str] = None,
+        auto: bool = True,
+        max_markets: int = 20,
     ):
         from src.screener import MarketScreener
         try:
             ex = build_exchange(exchange)
             screener = MarketScreener()
-            market_data = {}
-            for m in [s.strip().upper() for s in markets.split(",") if s.strip()]:
-                try:
-                    candles = ex.fetch_ohlcv(m, timeframe=timeframe, count=count)
-                    df = candles_to_dataframe(candles)
-                    if not df.empty:
-                        market_data[m] = df
-                except Exception:
-                    pass
-            scores = screener.rank_markets(market_data)
-            return {
-                "exchange": ex.name,
-                "timeframe": timeframe,
-                "scores": [s.to_dict() for s in scores],
-            }
+
+            if auto or not markets:
+                selected, scores = screener.auto_discover(
+                    exchange=ex,
+                    max_markets=max_markets,
+                    timeframe=timeframe,
+                    count=count,
+                )
+                return {
+                    "exchange": ex.name,
+                    "timeframe": timeframe,
+                    "auto_discovery": True,
+                    "selected": selected,
+                    "scores": [s.to_dict() for s in scores],
+                }
+            else:
+                market_data = {}
+                for m in [s.strip().upper() for s in markets.split(",") if s.strip()]:
+                    try:
+                        candles = ex.fetch_ohlcv(m, timeframe=timeframe, count=count)
+                        df = candles_to_dataframe(candles)
+                        if not df.empty:
+                            market_data[m] = df
+                    except Exception:
+                        pass
+                scores = screener.rank_markets(market_data)
+                return {
+                    "exchange": ex.name,
+                    "timeframe": timeframe,
+                    "auto_discovery": False,
+                    "scores": [s.to_dict() for s in scores],
+                }
         except Exception as exc:
             raise HTTPException(status_code=502, detail=f"screener failed: {exc}")
+
+    # ------------------------------------------------------------------
+    # Live auto-discovery status
+    # ------------------------------------------------------------------
+    @app.get("/api/auto_discovery")
+    def api_auto_discovery():
+        bot = mgr.current_bot()
+        if bot is None:
+            return {"active": False, "markets": [], "scores": []}
+        return {
+            "active": bot.auto_discover,
+            "markets": list(bot._active_markets),
+            "max_markets": bot.max_auto_markets,
+            "scores": [s.to_dict() for s in (bot._last_scores or [])],
+        }
 
     # ------------------------------------------------------------------
     # Bot lifecycle
@@ -485,10 +520,12 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         try:
             status = mgr.start(
                 mode=req.mode,
-                markets=[m.upper() for m in req.markets],
+                markets=[m.upper() for m in req.markets] if req.markets else [],
                 strategy=req.strategy,
                 timeframe=req.timeframe,
                 exchange=req.exchange,
+                auto_discover=req.auto_discover,
+                max_auto_markets=req.max_auto_markets,
             )
             return status.to_dict()
         except RuntimeError as exc:
@@ -509,6 +546,14 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         await ws.accept()
         try:
             while True:
+                bot = mgr.current_bot()
+                auto_info = {}
+                if bot and bot.auto_discover:
+                    auto_info = {
+                        "auto_discover": True,
+                        "active_markets": list(bot._active_markets),
+                        "total_scored": len(bot._last_scores) if bot._last_scores else 0,
+                    }
                 payload = {
                     "type": "tick",
                     "ts": datetime.now(timezone.utc).isoformat(),
@@ -517,6 +562,7 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                     "trades_tail": _read_trades(limit=10),
                     "weights": _read_weights(),
                     "logs": LOG_BUFFER.tail(limit=30),
+                    **auto_info,
                 }
                 await ws.send_text(json.dumps(payload))
                 await asyncio.sleep(1.0)

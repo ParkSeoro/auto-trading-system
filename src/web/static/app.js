@@ -115,12 +115,21 @@ function drawRSI(canvas, rsiArr) {
 function renderStatus(st) {
   const pill = $("status-pill");
   if (st.error) { pill.textContent = "ERROR"; pill.className = "status-pill error"; }
-  else if (st.running) { pill.textContent = "RUNNING · " + st.strategy; pill.className = "status-pill running"; }
+  else if (st.running) {
+    const label = st.auto_discover ? "AUTO-SCAN · " + st.strategy : "RUNNING · " + st.strategy;
+    pill.textContent = label;
+    pill.className = "status-pill running";
+  }
   else { pill.textContent = "IDLE"; pill.className = "status-pill"; }
   $("tag-exchange").textContent = st.exchange || st.default_exchange || "bithumb";
   const mt = $("tag-mode"); mt.textContent = st.mode; mt.className = "tag" + (st.mode === "live" ? " live" : "");
   $("server-time").textContent = (st.server_time || "").replace("T", " ").slice(0, 19);
-  $("footer-status").textContent = st.running ? "실행 중" : "대기 중";
+  $("footer-status").textContent = st.running
+    ? (st.auto_discover ? `자동 스캔 실행 중 (${(st.markets||[]).length}개 종목)` : "실행 중")
+    : "대기 중";
+  // Show auto-discovery card if running in auto mode
+  const discCard = $("auto-discovery-card");
+  if (discCard) discCard.style.display = (st.running && st.auto_discover) ? "" : "none";
 }
 
 function renderEquity(series) {
@@ -262,6 +271,37 @@ function renderLogs(logs) {
   if (autoScroll) box.scrollTop = box.scrollHeight;
 }
 
+function renderAutoDiscovery(data) {
+  const body = $("discovery-body");
+  const summary = $("discovery-summary");
+  if (!data || !data.active) return;
+
+  const markets = data.markets || [];
+  const scores = data.scores || [];
+  summary.textContent = `전체 ${scores.length}개 코인 중 ${markets.length}개 선정됨: ${markets.join(", ")}`;
+
+  if (!scores.length) {
+    body.innerHTML = '<tr><td colspan="9" class="muted">스캔 대기 중...</td></tr>';
+    return;
+  }
+
+  body.innerHTML = scores.slice(0, 30).map((s, i) => {
+    const selected = markets.includes(s.market);
+    const cls = selected ? 'style="background:rgba(84,224,127,0.08)"' : '';
+    return `<tr ${cls}>
+      <td>${i + 1}</td>
+      <td><b>${s.market}</b></td>
+      <td><b>${(s.total_score || 0).toFixed(3)}</b></td>
+      <td>${(s.volume_score || 0).toFixed(2)}</td>
+      <td>${(s.volatility_score || 0).toFixed(2)}</td>
+      <td>${(s.trend_score || 0).toFixed(2)}</td>
+      <td>${(s.momentum_score || 0).toFixed(2)}</td>
+      <td>${s.tradeable ? '<span style="color:#54e07f">✓</span>' : '<span style="color:#ff6b7a">✗</span>'}</td>
+      <td style="font-size:11px">${(s.reasons || []).join(", ")}</td>
+    </tr>`;
+  }).join("");
+}
+
 /* ---- API calls ---- */
 async function fetchJSON(url) {
   const r = await fetch(url); return r.json();
@@ -343,18 +383,21 @@ async function runBacktest() {
 
 /* ---- Bot controls ---- */
 async function apiStart() {
+  const autoDiscover = $("chk-auto-discover").checked;
   const payload = {
     mode: $("sel-mode").value,
-    markets: $("inp-markets").value.split(",").map(s => s.trim()).filter(Boolean),
+    markets: autoDiscover ? [] : $("inp-markets").value.split(",").map(s => s.trim()).filter(Boolean),
     strategy: $("sel-strategy").value,
     timeframe: $("sel-tf").value,
     exchange: $("sel-exchange").value || null,
+    auto_discover: autoDiscover,
+    max_auto_markets: parseInt($("inp-max-markets").value) || 10,
   };
   if (payload.mode === "live" && !confirm("LIVE 모드입니다. 실제 자금이 사용됩니다. 정말 시작할까요?")) return;
-  $("hint").textContent = "시작 중…";
+  $("hint").textContent = autoDiscover ? "전체 코인 스캔 후 시작 중… (약 1~2분 소요)" : "시작 중…";
   const r = await fetch("/api/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   if (!r.ok) { const e = await r.json().catch(() => ({})); $("hint").textContent = "실패: " + (e.detail || r.status); return; }
-  $("hint").textContent = "실행 중.";
+  $("hint").textContent = autoDiscover ? "자동 스캔 모드로 실행 중. AI가 최적의 종목을 선정합니다." : "실행 중.";
   refreshSnapshot();
 }
 
@@ -379,10 +422,25 @@ function connectWS() {
         renderTrades(d.trades_tail || []);
         renderWeights({ weights: d.weights || {} });
         renderLogs(d.logs || []);
+        // Push auto-discovery data from ws payload if available
+        if (d.auto_discover) {
+          renderAutoDiscovery({
+            active: true,
+            markets: d.active_markets || [],
+            scores: [],
+          });
+        }
       }
     } catch (e) { console.error(e); }
   };
   ws.onclose = () => setTimeout(connectWS, 2000);
+}
+
+async function refreshAutoDiscovery() {
+  try {
+    const d = await fetchJSON("/api/auto_discovery");
+    if (d.active) renderAutoDiscovery(d);
+  } catch (e) { console.error("auto_discovery", e); }
 }
 
 /* ---- Init ---- */
@@ -394,6 +452,23 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btn-refresh-watchlist").addEventListener("click", refreshWatchlist);
   $("btn-run-bt").addEventListener("click", runBacktest);
 
+  // Auto-discover checkbox toggles the market input field
+  const chkAuto = $("chk-auto-discover");
+  const inpMarkets = $("inp-markets");
+  chkAuto.addEventListener("change", () => {
+    inpMarkets.disabled = chkAuto.checked;
+    inpMarkets.placeholder = chkAuto.checked
+      ? "자동 스캔 모드 — AI가 종목을 선정합니다"
+      : "예: KRW-BTC,KRW-ETH,KRW-SOL";
+    if (!chkAuto.checked && !inpMarkets.value.trim()) {
+      inpMarkets.value = "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL";
+    }
+  });
+
+  // Wire up auto-discovery refresh button
+  const btnDisc = $("btn-refresh-discovery");
+  if (btnDisc) btnDisc.addEventListener("click", refreshAutoDiscovery);
+
   refreshSnapshot();
   refreshChart();
   refreshSignals();
@@ -404,6 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshWatchlist, 30000);
   setInterval(refreshChart, 60000);
   setInterval(() => fetchJSON("/api/analytics").then(renderAnalytics).catch(() => {}), 10000);
+  setInterval(refreshAutoDiscovery, 60000);
 
   window.addEventListener("resize", () => {
     fetchJSON("/api/equity").then(d => renderEquity(d.equity || []));

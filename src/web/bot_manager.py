@@ -30,6 +30,7 @@ class BotStatus:
     timeframe: str = "1d"
     started_at: Optional[str] = None
     error: Optional[str] = None
+    auto_discover: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -41,6 +42,7 @@ class BotStatus:
             "timeframe": self.timeframe,
             "started_at": self.started_at,
             "error": self.error,
+            "auto_discover": self.auto_discover,
         }
 
 
@@ -59,6 +61,9 @@ class BotManager:
             # thread might have died silently
             if self._status.running and (self._thread is None or not self._thread.is_alive()):
                 self._status.running = False
+            # Reflect live auto-discovered markets
+            if self._bot is not None and self._status.running:
+                self._status.markets = list(self._bot._active_markets)
             return self._status
 
     def current_bot(self) -> Optional[TradingBot]:
@@ -74,17 +79,22 @@ class BotManager:
         strategy: str,
         timeframe: str = "1d",
         exchange: Optional[str] = None,
+        auto_discover: bool = False,
+        max_auto_markets: int = 10,
     ) -> BotStatus:
         with self._lock:
             if self._status.running:
                 raise RuntimeError("Bot is already running. Stop it first.")
+            is_auto = auto_discover or not markets or markets == ["AUTO"]
             try:
                 bot = build_bot(
                     mode=mode,
-                    markets=markets,
+                    markets=markets if not is_auto else [],
                     strategy_name=strategy,
                     timeframe=timeframe,
                     exchange_name=exchange,
+                    auto_discover=is_auto,
+                    max_auto_markets=max_auto_markets,
                 )
             except Exception as exc:
                 self._status.error = f"build failed: {exc}"
@@ -96,10 +106,11 @@ class BotManager:
                 running=True,
                 mode=mode,
                 exchange=bot.exchange.name,
-                markets=list(markets),
+                markets=list(markets) if not is_auto else [],
                 strategy=strategy,
                 timeframe=timeframe,
                 started_at=datetime.now(timezone.utc).isoformat(),
+                auto_discover=is_auto,
             )
 
             def _runner():

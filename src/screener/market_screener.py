@@ -226,3 +226,51 @@ class MarketScreener:
             len(selected), len(market_data), selected,
         )
         return selected
+
+    def auto_discover(
+        self,
+        exchange,
+        max_markets: int = 10,
+        timeframe: str = "1d",
+        count: int = 100,
+        exclude: Optional[List[str]] = None,
+    ) -> Tuple[List[str], List[MarketScore]]:
+        """Discover all markets from exchange, score them, return top-N.
+
+        Returns (selected_markets, all_scores) so callers can inspect why
+        markets were selected or rejected.
+        """
+        exclude_set = set(exclude or [])
+        try:
+            all_markets = exchange.list_markets()
+        except Exception as exc:
+            log.warning("Failed to list markets: %s", exc)
+            return [], []
+
+        log.info("Auto-discovery: found %d markets on %s", len(all_markets), exchange.name)
+
+        market_data: Dict[str, pd.DataFrame] = {}
+        from src.data import candles_to_dataframe
+
+        for market in all_markets:
+            if market in exclude_set:
+                continue
+            try:
+                candles = exchange.fetch_ohlcv(market, timeframe=timeframe, count=count)
+                df = candles_to_dataframe(candles)
+                if not df.empty and len(df) >= 60:
+                    market_data[market] = df
+            except Exception as exc:
+                log.debug("Skipping %s: %s", market, exc)
+
+        log.info("Auto-discovery: fetched OHLCV for %d/%d markets", len(market_data), len(all_markets))
+
+        all_scores = self.rank_markets(market_data)
+        tradeable = [s.market for s in all_scores if s.tradeable]
+        selected = tradeable[:max_markets]
+
+        log.info(
+            "Auto-discovery complete: %d tradeable, selected top %d: %s",
+            len(tradeable), len(selected), selected,
+        )
+        return selected, all_scores

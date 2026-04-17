@@ -47,6 +47,8 @@ class TradingBot:
     timeframe: str = "1d"
     loop_interval: int = field(default_factory=lambda: settings.loop_interval)
     starting_capital: float = field(default_factory=lambda: settings.paper_capital)
+    auto_discover: bool = field(default=False, init=True)
+    max_auto_markets: int = 10
 
     executor: Executor = field(init=False)
     market_data: MarketData = field(init=False)
@@ -57,7 +59,9 @@ class TradingBot:
     _running: bool = field(default=False, init=False)
     _tick_count: int = field(default=0, init=False)
     _analyze_every: int = 10       # run analyzer every N ticks
-    _screen_every: int = 60        # re-screen markets every N ticks
+    _screen_every: int = 30        # re-screen markets every N ticks
+    _active_markets: List[str] = field(default_factory=list, init=False)
+    _last_scores: list = field(default_factory=list, init=False)
 
     def __post_init__(self):
         self.executor = Executor(exchange=self.exchange, mode=self.mode)
@@ -66,6 +70,10 @@ class TradingBot:
         self.trade_log = TradeLog(settings.db_path)
         self.analyzer = TradeAnalyzer()
         self.screener = MarketScreener()
+        if not self.markets or self.markets == ["AUTO"]:
+            self.auto_discover = True
+            self.markets = []
+        self._active_markets = list(self.markets)
 
     # ------------------------------------------------------------------
     # Bot loop
@@ -73,11 +81,20 @@ class TradingBot:
     def run(self) -> None:
         self._running = True
         self._install_signal_handlers()
+
+        if self.auto_discover:
+            log.info("🔍 Auto-discovery mode: scanning all markets on %s", self.exchange.name)
+            self._run_auto_discovery()
+
         log.info(
-            "🚀 Bot started | mode=%s | markets=%s | strategy=%s | tf=%s | interval=%ds",
-            self.mode, self.markets, self.strategy.name, self.timeframe, self.loop_interval,
+            "🚀 Bot started | mode=%s | markets=%s | auto=%s | strategy=%s | tf=%s | interval=%ds",
+            self.mode, self._active_markets, self.auto_discover, self.strategy.name,
+            self.timeframe, self.loop_interval,
         )
-        send_alert(f"Crypto bot started ({self.mode}) on {self.markets} / {self.strategy.name}")
+        send_alert(
+            f"Crypto bot started ({self.mode}) | auto={self.auto_discover} | "
+            f"{len(self._active_markets)} markets / {self.strategy.name}"
+        )
         try:
             while self._running:
                 try:
@@ -104,9 +121,17 @@ class TradingBot:
             except Exception as exc:
                 log.warning("analyzer update failed: %s", exc)
 
+        # Periodically re-scan markets in auto-discovery mode
+        if self.auto_discover and self._tick_count % self._screen_every == 0:
+            try:
+                self._run_auto_discovery()
+            except Exception as exc:
+                log.warning("auto-discovery re-scan failed: %s", exc)
+
         # Compute current equity for risk tracking
+        active = self._active_markets
         prices = {}
-        for market in self.markets:
+        for market in active:
             p = self.market_data.get_current_price(market)
             if p is not None:
                 prices[market] = p
@@ -116,7 +141,7 @@ class TradingBot:
 
         # Track open position count for max_open_positions limit
         open_count = sum(
-            1 for m in self.markets
+            1 for m in active
             if self.executor.get_position(m) and self.executor.get_position(m).quantity > 0
         )
         self.risk.set_open_positions(open_count)
@@ -130,11 +155,55 @@ class TradingBot:
             log.info("Trading halted. Equity=%.0f KRW.", equity)
             return
 
-        for market in self.markets:
+        for market in active:
             try:
                 self._process_market(market, prices.get(market))
             except Exception as exc:
                 log.exception("market %s failed: %s", market, exc)
+
+    # ------------------------------------------------------------------
+    # Auto-discovery
+    # ------------------------------------------------------------------
+    def _run_auto_discovery(self) -> None:
+        """Scan all exchange markets and select the best candidates."""
+        # Keep markets with open positions so we don't abandon them
+        held_markets = set()
+        for m in self._active_markets:
+            pos = self.executor.get_position(m)
+            if pos and pos.quantity > 0:
+                held_markets.add(m)
+
+        selected, scores = self.screener.auto_discover(
+            exchange=self.exchange,
+            max_markets=self.max_auto_markets,
+            timeframe=self.timeframe,
+            count=100,
+        )
+        self._last_scores = scores
+
+        # Merge: always keep held positions + add new top picks
+        new_active = list(held_markets)
+        for m in selected:
+            if m not in new_active:
+                new_active.append(m)
+
+        # Cap total active markets
+        new_active = new_active[: self.max_auto_markets + len(held_markets)]
+
+        if set(new_active) != set(self._active_markets):
+            added = set(new_active) - set(self._active_markets)
+            removed = set(self._active_markets) - set(new_active) - held_markets
+            log.info(
+                "🔄 Market rotation: +%s -%s | active=%d",
+                list(added) if added else "[]",
+                list(removed) if removed else "[]",
+                len(new_active),
+            )
+            if added:
+                send_alert(f"Market rotation: added {list(added)}, total {len(new_active)}")
+
+        self._active_markets = new_active
+        self.markets = list(new_active)
 
     # ------------------------------------------------------------------
     # Per-market processing
@@ -325,6 +394,8 @@ def build_bot(
     strategy_name: str,
     timeframe: str = "1d",
     exchange_name: Optional[str] = None,
+    auto_discover: bool = False,
+    max_auto_markets: int = 10,
 ) -> TradingBot:
     from src.exchanges import build_exchange
     exchange = build_exchange(exchange_name)
@@ -336,4 +407,6 @@ def build_bot(
         strategy=strategy,
         mode=mode,
         timeframe=timeframe,
+        auto_discover=auto_discover or not markets or markets == ["AUTO"],
+        max_auto_markets=max_auto_markets,
     )

@@ -215,6 +215,28 @@ select:focus, input:focus {
 }
 .btn-mini:hover { background: rgba(77,211,255,0.2); }
 
+/* ========== Auto-discovery toggle ========== */
+.auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(84,224,127,0.08);
+  border: 1px solid rgba(84,224,127,0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 500;
+  user-select: none;
+}
+.auto-toggle input[type="checkbox"] {
+  accent-color: var(--green);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 .hint {
   margin-top: 8px;
   color: var(--muted);
