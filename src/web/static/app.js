@@ -537,7 +537,6 @@ function connectWS() {
         renderEquity(d.equity_tail || []);
         renderTrades(d.trades_tail || []);
         renderWeights({ weights: d.weights || {} });
-        renderPositions(d.positions || []);
         renderLogs(d.logs || []);
         if (d.auto_discover) {
           renderAutoDiscovery({
