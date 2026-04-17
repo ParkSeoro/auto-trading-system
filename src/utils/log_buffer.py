@@ -15,6 +15,8 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Deque, List
 
+from config.settings import KST
+
 
 class RingLogHandler(logging.Handler):
     """Keep the last ``capacity`` log records in a ring buffer."""
@@ -33,7 +35,7 @@ class RingLogHandler(logging.Handler):
             msg = str(record.msg)
         entry = {
             "seq": 0,
-            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "ts": datetime.fromtimestamp(record.created, tz=KST).isoformat(),
             "level": record.levelname,
             "name": record.name,
             "message": msg,

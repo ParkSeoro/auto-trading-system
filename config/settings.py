@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from datetime import timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -14,6 +15,8 @@ except ImportError:  # pragma: no cover - dotenv is optional at runtime
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+KST = timezone(timedelta(hours=9))
 
 
 def _get_float(name: str, default: float) -> float:

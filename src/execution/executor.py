@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from config.settings import KST
+
 from config.settings import settings
 from src.exchanges.base import Exchange, Order, OrderSide, OrderType
 from src.utils.logger import get_logger
@@ -68,7 +70,7 @@ class PaperBroker:
         net = funds_krw - fee
         qty = net / price if price > 0 else 0.0
 
-        pos = self.positions.get(market) or Position(market=market, opened_at=datetime.now(timezone.utc))
+        pos = self.positions.get(market) or Position(market=market, opened_at=datetime.now(KST))
         new_qty = pos.quantity + qty
         if new_qty > 0:
             pos.avg_price = (pos.avg_price * pos.quantity + qty * price) / new_qty
@@ -79,7 +81,7 @@ class PaperBroker:
 
         self.cash -= funds_krw
         trade = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(KST).isoformat(),
             "market": market,
             "side": "buy",
             "price": price,
@@ -119,7 +121,7 @@ class PaperBroker:
 
         self.cash += net
         trade = {
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(KST).isoformat(),
             "market": market,
             "side": "sell",
             "price": price,
@@ -188,7 +190,7 @@ class Executor:
         )
         # record position shell (live balances will be fetched by bot.sync_balances)
         pos = self._live_positions.setdefault(
-            market, Position(market=market, opened_at=datetime.now(timezone.utc))
+            market, Position(market=market, opened_at=datetime.now(KST))
         )
         pos.stop_loss = stop_loss
         pos.take_profit = take_profit

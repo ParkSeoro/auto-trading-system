@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
+import time
 from pathlib import Path
 
 from config.settings import settings
 
+os.environ["TZ"] = "Asia/Seoul"
+try:
+    time.tzset()
+except AttributeError:
+    pass
 
 _LOG_FORMAT = "[%(asctime)s] %(levelname)-7s %(name)s: %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

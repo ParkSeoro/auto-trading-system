@@ -18,6 +18,8 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+
+from config.settings import KST
 from typing import Dict, Optional
 
 from config.settings import settings
@@ -149,7 +151,7 @@ class AutoTuner:
 
         # Record
         record = TuningRecord(
-            ts=datetime.now(timezone.utc).isoformat(),
+            ts=datetime.now(KST).isoformat(),
             strategy=strategy_name,
             params_before=params_before,
             params_after=params_after,

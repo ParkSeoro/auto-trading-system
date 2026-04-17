@@ -15,6 +15,8 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+
+from config.settings import KST
 from typing import Optional
 
 from src.utils.logger import get_logger
@@ -120,7 +122,7 @@ Respond ONLY with the JSON object."""
                     break
             result = json.loads(text.strip())
             result["source"] = "claude-opus-4-7"
-            result["ts"] = datetime.now(timezone.utc).isoformat()
+            result["ts"] = datetime.now(KST).isoformat()
             self._cache(result, "market_analysis")
             return result
         except Exception as exc:
@@ -193,7 +195,7 @@ Respond ONLY with JSON:
                     break
             result = json.loads(text.strip())
             result["source"] = "claude-opus-4-7"
-            result["ts"] = datetime.now(timezone.utc).isoformat()
+            result["ts"] = datetime.now(KST).isoformat()
             self._cache(result, "tuning")
             log.info("Claude tuning: %s", result.get("reasoning", ""))
             return result
@@ -229,7 +231,7 @@ Keep it concise, actionable, and data-driven."""
                 messages=[{"role": "user", "content": prompt}],
             )
             review = response.content[0].text.strip()
-            self._cache({"review": review, "ts": datetime.now(timezone.utc).isoformat()}, "session_review")
+            self._cache({"review": review, "ts": datetime.now(KST).isoformat()}, "session_review")
             return review
         except Exception as exc:
             log.warning("Claude session review failed: %s", exc)

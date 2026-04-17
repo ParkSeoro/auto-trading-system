@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from config.settings import settings
+from config.settings import KST, settings
 from src.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -153,7 +153,7 @@ class TradeAnalyzer:
         self.analysis_path.parent.mkdir(parents=True, exist_ok=True)
         doc = {
             "last_trade_id": self._last_trade_id,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(KST).isoformat(),
             "stats": {k: v.to_dict() for k, v in self.stats.items()},
         }
         # Also save recent_pnl

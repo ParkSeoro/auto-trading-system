@@ -5,6 +5,8 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+from config.settings import KST
 from typing import Iterator, Optional
 
 
@@ -71,7 +73,7 @@ class TradeLog:
                 "INSERT INTO trades(ts,market,side,price,quantity,funds,fee,mode,strategy,reason,order_id) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(KST).isoformat(),
                     market, side, price, quantity, funds, fee, mode,
                     strategy, reason, order_id,
                 ),
@@ -81,5 +83,5 @@ class TradeLog:
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO equity_history(ts,equity,cash,mode) VALUES (?,?,?,?)",
-                (datetime.now(timezone.utc).isoformat(), equity, cash, mode),
+                (datetime.now(KST).isoformat(), equity, cash, mode),
             )

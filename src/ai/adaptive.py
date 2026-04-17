@@ -33,7 +33,7 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from config.settings import settings
+from config.settings import KST, settings
 from src.strategies.base import Signal, SignalType, Strategy
 from src.strategies.volatility_breakout import VolatilityBreakoutStrategy
 from src.strategies.rsi_mean_reversion import RSIMeanReversionStrategy
@@ -67,7 +67,7 @@ class WeightStore:
         doc = {
             "weights": {k: round(float(v), 6) for k, v in weights.items()},
             "last_trade_id": int(last_trade_id),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(KST).isoformat(),
         }
         self.path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
 

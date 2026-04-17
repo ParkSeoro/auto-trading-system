@@ -31,6 +31,8 @@ import asyncio
 import json
 import sqlite3
 from datetime import datetime, timezone
+
+from config.settings import KST
 from pathlib import Path
 from typing import List, Optional
 
@@ -197,7 +199,7 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
     @app.get("/api/status")
     def api_status():
         st = mgr.status().to_dict()
-        st["server_time"] = datetime.now(timezone.utc).isoformat()
+        st["server_time"] = datetime.now(KST).isoformat()
         st["default_exchange"] = settings.exchange
         st["paper_capital"] = settings.paper_capital
         st["trading_mode_env"] = settings.trading_mode
@@ -594,7 +596,7 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                     }
                 payload = {
                     "type": "tick",
-                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "ts": datetime.now(KST).isoformat(),
                     "status": mgr.status().to_dict(),
                     "equity_tail": _read_equity(limit=50),
                     "trades_tail": _read_trades(limit=10),

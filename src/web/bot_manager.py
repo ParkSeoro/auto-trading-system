@@ -12,6 +12,8 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+
+from config.settings import KST
 from typing import List, Optional
 
 from src.bot import TradingBot, build_bot
@@ -109,7 +111,7 @@ class BotManager:
                 markets=list(markets) if not is_auto else [],
                 strategy=strategy,
                 timeframe=timeframe,
-                started_at=datetime.now(timezone.utc).isoformat(),
+                started_at=datetime.now(KST).isoformat(),
                 auto_discover=is_auto,
             )
 

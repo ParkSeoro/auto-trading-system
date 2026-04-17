@@ -33,7 +33,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from config.settings import settings
+from config.settings import KST, settings
 from src.indicators import atr
 from src.utils.logger import get_logger
 
@@ -82,7 +82,7 @@ class RiskManager:
     # Equity / daily tracking
     # ------------------------------------------------------------------
     def update_equity(self, equity: float, now: Optional[datetime] = None) -> None:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(KST)
         today = now.date()
         if self._daily is None or self._daily.day != today:
             self._daily = _DailyState(day=today, peak_equity=equity, starting_equity=equity)
@@ -101,7 +101,7 @@ class RiskManager:
             )
 
     def is_halted(self, now: Optional[datetime] = None) -> bool:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(KST)
         if self._cooldown_until and now < self._cooldown_until:
             return True
         if self._daily and self._daily.halted:
@@ -122,7 +122,7 @@ class RiskManager:
         change = (current / reference) - 1.0
         if change <= self.flash_crash_threshold and not self._flash_tripped:
             self._flash_tripped = True
-            self._cooldown_until = datetime.now(timezone.utc) + pd.Timedelta(
+            self._cooldown_until = datetime.now(KST) + pd.Timedelta(
                 minutes=self.cooldown_minutes
             )
             log.warning(

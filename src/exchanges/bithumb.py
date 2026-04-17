@@ -191,7 +191,8 @@ class BithumbExchange(Exchange):
 
     @staticmethod
     def _parse_candle(row: list) -> Candle:
-        ts = datetime.fromtimestamp(int(row[0]) / 1000, tz=timezone.utc)
+        from config.settings import KST
+        ts = datetime.fromtimestamp(int(row[0]) / 1000, tz=KST)
         return Candle(
             timestamp=ts,
             open=float(row[1]),

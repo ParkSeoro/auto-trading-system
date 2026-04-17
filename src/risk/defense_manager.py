@@ -20,6 +20,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
 
+from config.settings import KST
 from src.utils.logger import get_logger
 from src.utils.notifier import send_alert
 
@@ -65,7 +66,7 @@ class DefenseState:
             return False
         if self.halt_until is None:
             return False
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(KST)
         return now < self.halt_until
 
     def to_dict(self) -> dict:
@@ -109,7 +110,7 @@ class DefenseManager:
         halt_loss_pct: float = 0.05,
         defense_consecutive: int = 2,
         halt_consecutive: int = 4,
-        halt_duration_minutes: int = 60,
+        halt_duration_minutes: int = 15,
         recovery_ratio: float = 0.5,
         min_rr_in_recovery: float = 2.0,
     ):
@@ -134,7 +135,7 @@ class DefenseManager:
     # Equity update (called each tick)
     # ------------------------------------------------------------------
     def update_equity(self, equity: float, now: Optional[datetime] = None) -> TradingMode:
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(KST)
         today = now.date()
         s = self._state
 
@@ -247,7 +248,7 @@ class DefenseManager:
         rr_ratio: Optional[float] = None,
     ) -> tuple[bool, str]:
         """Return (allowed, reason). Bot must call before entry."""
-        now = now or datetime.now(timezone.utc)
+        now = now or datetime.now(KST)
         s = self._state
 
         if s.mode == TradingMode.HALT and s.is_halted_now(now):

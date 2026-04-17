@@ -146,9 +146,10 @@ class UpbitExchange(Exchange):
 
     @staticmethod
     def _parse_candle(row: dict) -> Candle:
+        from config.settings import KST
         ts = datetime.strptime(row["candle_date_time_utc"], "%Y-%m-%dT%H:%M:%S").replace(
             tzinfo=timezone.utc
-        )
+        ).astimezone(KST)
         return Candle(
             timestamp=ts,
             open=float(row["opening_price"]),
