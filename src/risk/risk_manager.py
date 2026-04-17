@@ -146,7 +146,11 @@ class RiskManager:
         df: pd.DataFrame,
         confidence: float = 1.0,
         available_krw: Optional[float] = None,
+        signal_meta: Optional[Dict] = None,
     ) -> RiskDecision:
+        """Evaluate entry. If signal_meta contains 'sl_suggest'/'tp_suggest',
+        use structure-based levels instead of fixed ATR multiples.
+        """
         if self.is_halted():
             return RiskDecision(False, reason="trading halted (MDD/cooldown)")
 
@@ -164,9 +168,23 @@ class RiskManager:
         if pd.isna(a) or a <= 0:
             return RiskDecision(False, reason="ATR unavailable")
 
-        stop_distance = float(a) * self.stop_loss_atr_mult
-        stop_loss = entry_price - stop_distance
-        take_profit = entry_price + float(a) * self.take_profit_atr_mult
+        sl_from_meta = (signal_meta or {}).get("sl_suggest")
+        tp_from_meta = (signal_meta or {}).get("tp_suggest")
+        used_structure = False
+
+        if (sl_from_meta is not None and tp_from_meta is not None
+                and sl_from_meta < entry_price < tp_from_meta):
+            stop_loss = float(sl_from_meta)
+            take_profit = float(tp_from_meta)
+            stop_distance = entry_price - stop_loss
+            used_structure = True
+        else:
+            stop_distance = float(a) * self.stop_loss_atr_mult
+            stop_loss = entry_price - stop_distance
+            take_profit = entry_price + float(a) * self.take_profit_atr_mult
+
+        if stop_distance <= 0:
+            return RiskDecision(False, reason="invalid stop distance")
 
         # Volatility-targeted sizing: risk 1% of capital on the stop distance
         risk_amount = self.capital * self.risk_per_trade_pct * max(0.2, min(1.0, confidence))
@@ -184,12 +202,13 @@ class RiskManager:
                 reason=f"size {size_krw:.0f} KRW below min order {self.min_order_krw:.0f}",
             )
 
+        sizing_tag = "structure-sized" if used_structure else f"ATR-sized (atr={a:.2f})"
         return RiskDecision(
             approved=True,
             position_size_krw=round(size_krw, 0),
             stop_loss=round(stop_loss, 2),
             take_profit=round(take_profit, 2),
-            reason=f"ATR-sized (atr={a:.2f}, risk={risk_amount:.0f} KRW)",
+            reason=f"{sizing_tag}, risk={risk_amount:.0f} KRW",
         )
 
     # ------------------------------------------------------------------
@@ -328,6 +347,7 @@ class RiskManager:
         available_krw: Optional[float],
         confidence_adj: float = 1.0,
         size_adj: float = 1.0,
+        signal_meta: Optional[Dict] = None,
     ) -> RiskDecision:
         """Like evaluate_entry but with analyzer feedback adjustments.
 
@@ -337,6 +357,9 @@ class RiskManager:
             Multiplier from TradeAnalyzer.get_confidence_adjustment()
         size_adj : float
             Multiplier from TradeAnalyzer.get_size_adjustment()
+        signal_meta : dict
+            Optional strategy metadata with 'sl_suggest'/'tp_suggest' for
+            structure-based exit levels.
         """
         adjusted_confidence = confidence * max(0.0, min(1.0, confidence_adj))
 
@@ -349,6 +372,7 @@ class RiskManager:
 
         decision = self.evaluate_entry(
             df, confidence=adjusted_confidence, available_krw=available_krw,
+            signal_meta=signal_meta,
         )
 
         if decision.approved and size_adj != 1.0:

@@ -511,9 +511,15 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         bot = mgr.current_bot()
         if bot is None:
             return {"running": False}
+        btc_state = {}
+        try:
+            btc_state = bot.btc_filter.state.to_dict()
+        except Exception:
+            pass
         return {
             "running": True,
             "defense": bot.defense.status_report(),
+            "btc_filter": btc_state,
             "market_states": bot._last_market_states,
             "ai_advice": bot.claude.last_advice(),
             "active_markets": list(bot._active_markets),

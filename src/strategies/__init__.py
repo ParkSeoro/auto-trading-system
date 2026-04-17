@@ -7,6 +7,7 @@ from src.strategies.ensemble import EnsembleStrategy  # noqa: F401
 from src.strategies.macd_crossover import MACDCrossoverStrategy  # noqa: F401
 from src.strategies.multi_tf_momentum import MultiTFMomentumStrategy  # noqa: F401
 from src.strategies.scalping import ScalpingStrategy  # noqa: F401
+from src.strategies.crypto_regime import CryptoRegimeStrategy  # noqa: F401
 
 
 STRATEGY_REGISTRY = {
@@ -18,6 +19,7 @@ STRATEGY_REGISTRY = {
     "macd_crossover": MACDCrossoverStrategy,
     "multi_tf_momentum": MultiTFMomentumStrategy,
     "scalping": ScalpingStrategy,
+    "crypto_regime": CryptoRegimeStrategy,
 }
 
 

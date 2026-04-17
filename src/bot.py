@@ -28,6 +28,7 @@ from src.ai.trade_analyzer import TradeAnalyzer
 from src.ai.market_classifier import MarketClassifier, MarketAnalysis
 from src.ai.claude_advisor import ClaudeAdvisor
 from src.ai.auto_tuner import AutoTuner
+from src.ai.btc_filter import BTCFilter
 from src.data import MarketData
 from src.exchanges.base import Exchange
 from src.execution import Executor
@@ -65,6 +66,7 @@ class TradingBot:
     classifier: MarketClassifier = field(init=False)
     claude: ClaudeAdvisor = field(init=False)
     tuner: AutoTuner = field(init=False)
+    btc_filter: BTCFilter = field(init=False)
     _running: bool = field(default=False, init=False)
     _tick_count: int = field(default=0, init=False)
     _analyze_every: int = 10       # run analyzer every N ticks
@@ -88,6 +90,7 @@ class TradingBot:
         self.classifier = MarketClassifier()
         self.claude = ClaudeAdvisor()
         self.tuner = AutoTuner()
+        self.btc_filter = BTCFilter(market_data=self.market_data)
         if not self.markets or self.markets == ["AUTO"]:
             self.auto_discover = True
             self.markets = []
@@ -174,6 +177,18 @@ class TradingBot:
         # Periodic Claude AI market analysis
         if self._tick_count % self._claude_every == 0 and self.claude.available():
             self._run_claude_analysis()
+
+        # BTC regime update — guards all alt-coin trades this tick
+        try:
+            btc_state = self.btc_filter.update(exchange=self.exchange)
+            if btc_state.force_exit:
+                log.warning(
+                    "⚠️ BTC crash detected (%s). Force-exiting alt positions.",
+                    btc_state.reason,
+                )
+                self._force_exit_alts(reason=f"btc_crash: {btc_state.reason}")
+        except Exception as exc:
+            log.debug("BTC filter update failed: %s", exc)
 
         # Compute current equity for risk tracking
         active = self._active_markets
@@ -441,6 +456,12 @@ class TradingBot:
                 log.info("BUY blocked by Claude AI: %s", claude_advice.get("reasoning", ""))
                 return
 
+            # BTC regime filter — most important for alt coins
+            btc_ok, btc_size_mult, btc_reason = self.btc_filter.check_alt_entry(market)
+            if not btc_ok:
+                log.info("BUY blocked on %s by BTC filter: %s", market, btc_reason)
+                return
+
             # Get feedback adjustments from past trade analysis
             conf_adj = self.analyzer.get_confidence_adjustment(
                 market, self.strategy.name,
@@ -448,9 +469,9 @@ class TradingBot:
             size_adj = self.analyzer.get_size_adjustment(
                 market, self.strategy.name,
             )
-            # Apply defense size multiplier (consecutive loss scaling)
+            # Apply defense size multiplier + BTC regime scaling
             defense_mult = self.defense.size_multiplier()
-            size_adj = size_adj * defense_mult
+            size_adj = size_adj * defense_mult * btc_size_mult
 
             available_cash = self._available_cash()
             decision = self.risk.evaluate_entry_with_feedback(
@@ -459,6 +480,7 @@ class TradingBot:
                 available_krw=available_cash,
                 confidence_adj=conf_adj,
                 size_adj=size_adj,
+                signal_meta=signal.meta,
             )
             if not decision.approved:
                 log.info("BUY rejected on %s: %s", market, decision.reason)
@@ -469,7 +491,7 @@ class TradingBot:
                 price=current_price,
                 stop_loss=decision.stop_loss,
                 take_profit=decision.take_profit,
-                reason=signal.reason,
+                reason=f"{signal.reason} | {btc_reason}" if btc_reason else signal.reason,
             )
 
         elif signal.type == SignalType.SELL and position and position.quantity > 0:
@@ -544,6 +566,27 @@ class TradingBot:
                 f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason} | "
                 f"PnL≈{pnl_sign}{estimated_pnl:,.0f} KRW | mode={self.defense.mode}"
             )
+
+    # ------------------------------------------------------------------
+    # Emergency exits
+    # ------------------------------------------------------------------
+    def _force_exit_alts(self, reason: str) -> None:
+        """Force-close all non-BTC positions. Used on BTC crash."""
+        if self.executor.is_paper:
+            positions = dict(self.executor.paper.positions)
+        else:
+            positions = dict(self.executor._live_positions)
+        for mkt, pos in positions.items():
+            if mkt.upper() == "KRW-BTC":
+                continue
+            if pos.quantity <= 1e-12:
+                continue
+            px = self.market_data.get_current_price(mkt) or pos.avg_price
+            try:
+                self._execute_sell(mkt, pos.quantity, px, reason=reason)
+                self.risk.clear_position_peak(mkt)
+            except Exception as exc:
+                log.warning("Force exit failed on %s: %s", mkt, exc)
 
     # ------------------------------------------------------------------
     # Equity / cash helpers

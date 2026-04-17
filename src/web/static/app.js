@@ -298,6 +298,7 @@ function renderDefensePanel(report) {
   const body = $("defense-body");
   if (!body || !report || !report.running) return;
   const d = report.defense || {};
+  const btc = report.btc_filter || {};
   const modeColors = { normal: "#54e07f", defense: "#ffd666", halt: "#ff6b7a", recovery: "#b08cff" };
   const modeKr = { normal: "정상", defense: "방어 모드", halt: "거래 중단", recovery: "복구 모드" };
   const modeKey = d.mode || "normal";
@@ -305,6 +306,19 @@ function renderDefensePanel(report) {
   const label = modeKr[modeKey] || modeKey;
   const pnlPct = d.session_pnl_pct || 0;
   const pnlColor = pnlPct >= 0 ? "#54e07f" : "#ff6b7a";
+
+  const btcColors = {
+    bullish: "#54e07f", neutral: "#ffd666", mixed: "#ffd666",
+    overheated: "#ffb0b8", bearish: "#ff6b7a", crash: "#ff3344",
+  };
+  const btcLabels = {
+    bullish: "BTC 상승", neutral: "BTC 횡보", mixed: "BTC 혼조",
+    overheated: "BTC 과열", bearish: "BTC 하락", crash: "BTC 급락",
+    unknown: "BTC 데이터 대기",
+  };
+  const btcColor = btcColors[btc.regime] || "#8b93b8";
+  const btcLabel = btcLabels[btc.regime] || btc.regime || "–";
+
   body.innerHTML = `
     <div class="defense-status" style="border-color:${color}">
       <div class="defense-mode" style="color:${color}">● ${label}</div>
@@ -316,6 +330,17 @@ function renderDefensePanel(report) {
       </div>
       ${d.halt_until ? `<div style="color:#ff6b7a;font-size:12px;margin-top:8px">중단: ${d.halt_reason} | 재개: ${(d.halt_until||'').slice(0,19).replace('T',' ')}</div>` : ''}
     </div>
+    ${btc.regime ? `
+    <div class="defense-status" style="border-color:${btcColor};margin-top:8px">
+      <div class="defense-mode" style="color:${btcColor}">⬢ ${btcLabel} (안전도 ${((btc.score||0)*100).toFixed(0)}%)</div>
+      <div class="defense-grid">
+        <div><small>1h 추세</small><span>${btc.trend_1h || '–'}</span></div>
+        <div><small>4h 추세</small><span>${btc.trend_4h || '–'}</span></div>
+        <div><small>RSI 1h</small><span>${btc.rsi_1h || '–'}</span></div>
+        <div><small>1h 수익률</small><span style="color:${(btc.return_1h_pct||0) >= 0 ? '#54e07f':'#ff6b7a'}">${(btc.return_1h_pct||0) >= 0 ? '+':''}${(btc.return_1h_pct||0).toFixed(2)}%</span></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">${btc.reason || ''}</div>
+    </div>` : ''}
     <div class="market-summary">
       <small style="color:var(--muted)">활성 종목 (${(report.active_markets||[]).length}개)</small>
       <div style="font-size:13px;margin-top:4px">${(report.active_markets||[]).join(' · ') || '–'}</div>
