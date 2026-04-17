@@ -69,6 +69,8 @@ class TradingBot:
     _tick_count: int = field(default=0, init=False)
     _analyze_every: int = 10       # run analyzer every N ticks
     _screen_every: int = 30        # re-screen markets every N ticks
+    _save_every: int = 5           # persist paper state every N ticks
+    _claude_every: int = 60        # ask Claude for analysis every N ticks
     _active_markets: List[str] = field(default_factory=list, init=False)
     _last_scores: list = field(default_factory=list, init=False)
     _last_market_states: dict = field(default_factory=dict, init=False)
@@ -90,6 +92,24 @@ class TradingBot:
             self.auto_discover = True
             self.markets = []
         self._active_markets = list(self.markets)
+        self._register_strategy_params()
+
+    def _register_strategy_params(self) -> None:
+        """Register current strategy parameters with the AutoTuner."""
+        params = {}
+        strat = self.strategy
+        for attr in ("rsi_low", "rsi_high", "volume_min_mult", "volume_max_mult",
+                      "sl_atr_mult", "tp_atr_mult", "k", "volume_factor"):
+            if hasattr(strat, attr):
+                params[attr] = getattr(strat, attr)
+        if hasattr(strat, "members"):
+            for member in strat.members:
+                for attr in ("rsi_low", "rsi_high", "k", "volume_factor"):
+                    if hasattr(member, attr):
+                        params[f"{member.name}.{attr}"] = getattr(member, attr)
+        if params:
+            self.tuner.register_strategy(self.strategy.name, params)
+            log.info("AutoTuner registered: %s params=%s", self.strategy.name, params)
 
     # ------------------------------------------------------------------
     # Bot loop
@@ -144,6 +164,17 @@ class TradingBot:
             except Exception as exc:
                 log.warning("auto-discovery re-scan failed: %s", exc)
 
+        # Periodic paper state save (crash protection)
+        if self.executor.is_paper and self._tick_count % self._save_every == 0:
+            try:
+                self.executor.paper.save_state()
+            except Exception:
+                pass
+
+        # Periodic Claude AI market analysis
+        if self._tick_count % self._claude_every == 0 and self.claude.available():
+            self._run_claude_analysis()
+
         # Compute current equity for risk tracking
         active = self._active_markets
         prices = {}
@@ -183,6 +214,90 @@ class TradingBot:
                 self._process_market(market, prices.get(market))
             except Exception as exc:
                 log.exception("market %s failed: %s", market, exc)
+
+    # ------------------------------------------------------------------
+    # Claude AI analysis
+    # ------------------------------------------------------------------
+    def _run_claude_analysis(self) -> None:
+        """Ask Claude to analyze top active markets and cache advice."""
+        markets_to_analyze = self._active_markets[:3]
+        for market in markets_to_analyze:
+            try:
+                market_state = self._last_market_states.get(market, {})
+                recent_trades = []
+                try:
+                    import sqlite3
+                    with sqlite3.connect(str(settings.db_path)) as conn:
+                        conn.row_factory = sqlite3.Row
+                        rows = conn.execute(
+                            "SELECT ts, market, side, price, quantity, fee, strategy, reason "
+                            "FROM trades WHERE market=? ORDER BY id DESC LIMIT 5",
+                            (market,),
+                        ).fetchall()
+                        recent_trades = [dict(r) for r in rows]
+                except Exception:
+                    pass
+
+                advice = self.claude.analyze_market(
+                    market=market,
+                    market_state=market_state,
+                    recent_trades=recent_trades,
+                    defense_status=self.defense.status_report(),
+                )
+                log.info(
+                    "Claude advice for %s: %s (confidence=%.2f) — %s",
+                    market, advice.get("action"), advice.get("confidence", 0),
+                    advice.get("reasoning", ""),
+                )
+            except Exception as exc:
+                log.debug("Claude analysis failed for %s: %s", market, exc)
+
+    # ------------------------------------------------------------------
+    # Auto-tuning (after trades)
+    # ------------------------------------------------------------------
+    def _check_auto_tuning(self) -> None:
+        """Check if strategy parameters need tuning based on recent performance."""
+        try:
+            all_stats = self.analyzer.get_all_stats()
+            strategy_stats = {}
+            for key, stat in all_stats.items():
+                if "|" in key:
+                    _, strat_name = key.split("|", 1)
+                    if strat_name == self.strategy.name:
+                        for k2, v in stat.items():
+                            strategy_stats[k2] = strategy_stats.get(k2, 0) + v if isinstance(v, (int, float)) and v is not None else v
+
+            if not strategy_stats.get("total_trades"):
+                return
+
+            if self.tuner.should_tune(self.strategy.name, strategy_stats):
+                new_params = self.tuner.apply_tuning(
+                    self.strategy.name,
+                    strategy_stats,
+                    claude_advisor=self.claude,
+                )
+                self._apply_params_to_strategy(new_params)
+        except Exception as exc:
+            log.debug("auto-tuning check failed: %s", exc)
+
+    def _apply_params_to_strategy(self, params: dict) -> None:
+        """Apply tuned parameters to the running strategy instance."""
+        strat = self.strategy
+        applied = []
+        for key, val in params.items():
+            if "." in key:
+                member_name, attr = key.split(".", 1)
+                if hasattr(strat, "members"):
+                    for member in strat.members:
+                        if member.name == member_name and hasattr(member, attr):
+                            setattr(member, attr, val)
+                            applied.append(f"{key}={val}")
+            elif hasattr(strat, key):
+                setattr(strat, key, val)
+                applied.append(f"{key}={val}")
+        if applied:
+            log.info("Auto-tuning applied to %s: %s", strat.name, ", ".join(applied))
+            send_alert(f"Auto-tuning: {', '.join(applied)}")
 
     # ------------------------------------------------------------------
     # Auto-discovery
@@ -320,6 +435,12 @@ class TradingBot:
                 log.info("BUY skipped on %s: %s", market, skip_reason)
                 return
 
+            # Consult Claude AI advice (if available and cached)
+            claude_advice = self.claude.last_advice().get("market_analysis", {})
+            if claude_advice.get("action") == "AVOID" and claude_advice.get("confidence", 0) >= 0.7:
+                log.info("BUY blocked by Claude AI: %s", claude_advice.get("reasoning", ""))
+                return
+
             # Get feedback adjustments from past trade analysis
             conf_adj = self.analyzer.get_confidence_adjustment(
                 market, self.strategy.name,
@@ -411,6 +532,13 @@ class TradingBot:
             )
             # Notify defense manager of outcome (updates consecutive loss counter)
             self.defense.record_trade_outcome(estimated_pnl)
+            # Re-analyze immediately so feedback is available for next trade
+            try:
+                self.analyzer.update()
+            except Exception:
+                pass
+            # Check if auto-tuning is needed after this trade
+            self._check_auto_tuning()
             pnl_sign = "+" if estimated_pnl >= 0 else ""
             send_alert(
                 f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason} | "

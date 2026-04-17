@@ -314,8 +314,7 @@ class TradeAnalyzer:
                 market, strategy, recent_wr * 100,
             )
         elif recent_wr > 0.6 and recent_exp > 0:
-            # Winning streak: slight increase (but capped)
-            adjustment = min(1.3, 1.0 + recent_wr * 0.2)
+            adjustment = 1.0
         else:
             adjustment = 1.0
 

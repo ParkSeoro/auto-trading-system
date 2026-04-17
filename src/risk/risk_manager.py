@@ -353,7 +353,7 @@ class RiskManager:
 
         if decision.approved and size_adj != 1.0:
             decision.position_size_krw = round(
-                decision.position_size_krw * max(0.1, min(1.5, size_adj)), 0,
+                decision.position_size_krw * max(0.1, min(1.0, size_adj)), 0,
             )
             if decision.position_size_krw < self.min_order_krw:
                 return RiskDecision(

@@ -41,6 +41,7 @@ class Position:
             "avg_price": self.avg_price,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
+            "opened_at": self.opened_at.isoformat() if self.opened_at else None,
         }
 
 

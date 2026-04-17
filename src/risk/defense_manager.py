@@ -227,11 +227,11 @@ class DefenseManager:
         # --- Check recovery completion ---
         if s.mode == TradingMode.RECOVERY:
             if equity >= s.recovery_target:
-                old_mode = s.mode
                 s.mode = TradingMode.NORMAL
                 s.consecutive_losses = 0
-                log.info("✅ Recovery complete! Returning to NORMAL mode. Equity=%.0f", equity)
+                log.info("Recovery complete! Returning to NORMAL mode. Equity=%.0f", equity)
                 send_alert(f"Recovery complete — returning to normal trading. Equity={equity:,.0f} KRW")
+            self.save_state()
             return s.mode
 
         # --- Check halt expiry ---
@@ -242,6 +242,7 @@ class DefenseManager:
                 s.recovery_target = equity + abs(equity - s.starting_equity) * self.recovery_ratio
                 log.info("Halt expired → RECOVERY mode. Target=%.0f", s.recovery_target)
                 send_alert(f"Halt expired → Recovery mode. Target equity: {s.recovery_target:,.0f} KRW")
+            self.save_state()
             return s.mode
 
         # --- Escalation checks ---
@@ -267,18 +268,13 @@ class DefenseManager:
         return s.mode
 
     def _trigger_halt(self, reason: str, now: datetime, equity: float) -> None:
+        from datetime import timedelta as _td
         s = self._state
         if s.mode == TradingMode.HALT:
             return
         s.mode = TradingMode.HALT
         s.halt_reason = reason
-        s.halt_until = now.__class__(
-            now.year, now.month, now.day,
-            now.hour, now.minute, now.second,
-            tzinfo=now.tzinfo,
-        )
-        import datetime as _dt
-        s.halt_until = now + _dt.timedelta(minutes=self.halt_duration_minutes)
+        s.halt_until = now + _td(minutes=self.halt_duration_minutes)
         log.warning(
             "🛑 HALT triggered: %s. Pausing until %s",
             reason, s.halt_until.isoformat(),
