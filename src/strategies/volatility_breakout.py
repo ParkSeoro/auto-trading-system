@@ -48,15 +48,16 @@ class VolatilityBreakoutStrategy(Strategy):
 
         has_position = bool(position and position.get("quantity", 0) > 0)
 
-        # Exit first: if we hold a position, close on each new bar open (daily rollover)
         if has_position:
-            # close the position at bar close if we haven't captured breakout again
-            return Signal(
-                SignalType.SELL,
-                confidence=1.0,
-                reason="VB: flat-at-bar-end",
-                meta={"target": target},
-            )
+            # Only sell if current price has fallen below the breakout target
+            if curr["close"] < target:
+                return Signal(
+                    SignalType.SELL,
+                    confidence=0.7,
+                    reason="VB: price below breakout target",
+                    meta={"target": target},
+                )
+            return Signal.hold("VB: holding above breakout target")
 
         # Entry: current price has broken target AND volume confirms
         if curr["close"] >= target and curr["volume"] >= vol_avg * self.volume_factor:

@@ -95,6 +95,39 @@ body {
 
 .server-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
+/* ========== Tab navigation ========== */
+.tab-nav {
+  display: flex;
+  gap: 2px;
+  padding: 8px 22px 0;
+  background: rgba(20, 26, 51, 0.4);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+.tab-btn {
+  padding: 10px 20px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--fg); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.tab-content {
+  display: none;
+  padding-top: 6px;
+}
+.tab-content.active { display: block; }
+
 /* ========== General layout ========== */
 section { margin: 0 22px 18px; }
 
@@ -510,3 +543,6 @@ footer {
 
 /* ========== Market state panel ========== */
 .market-state-panel { padding: 4px 0; }
+
+/* Full-height logs on dedicated tab */
+.logs-box-full { max-height: 70vh; }

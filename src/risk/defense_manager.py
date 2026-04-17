@@ -15,12 +15,14 @@ Absolute prohibitions:
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Optional
 
-from config.settings import KST
+from config.settings import KST, settings
 from src.utils.logger import get_logger
 from src.utils.notifier import send_alert
 
@@ -122,6 +124,8 @@ class DefenseManager:
         self.recovery_ratio = recovery_ratio
         self.min_rr_in_recovery = min_rr_in_recovery
         self._state = DefenseState()
+        self._STATE_PATH: Path = settings.data_dir / "defense_state.json"
+        self._load_state()
 
     @property
     def state(self) -> DefenseState:
@@ -130,6 +134,67 @@ class DefenseManager:
     @property
     def mode(self) -> TradingMode:
         return self._state.mode
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+    def save_state(self) -> None:
+        s = self._state
+        doc = {
+            "mode": s.mode.value,
+            "day": str(s.day) if s.day else None,
+            "starting_equity": s.starting_equity,
+            "peak_equity": s.peak_equity,
+            "current_equity": s.current_equity,
+            "consecutive_losses": s.consecutive_losses,
+            "consecutive_wins": s.consecutive_wins,
+            "halt_until": s.halt_until.isoformat() if s.halt_until else None,
+            "halt_reason": s.halt_reason,
+            "loss_at_halt": s.loss_at_halt,
+            "recovery_target": s.recovery_target,
+            "saved_at": datetime.now(KST).isoformat(),
+        }
+        try:
+            self._STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            self._STATE_PATH.write_text(
+                json.dumps(doc, indent=2, ensure_ascii=False), encoding="utf-8"
+            )
+        except Exception as exc:
+            log.warning("[defense] state save failed: %s", exc)
+
+    def _load_state(self) -> None:
+        if not self._STATE_PATH.exists():
+            return
+        try:
+            doc = json.loads(self._STATE_PATH.read_text(encoding="utf-8"))
+            s = self._state
+            s.mode = TradingMode(doc.get("mode", "normal"))
+            day_str = doc.get("day")
+            if day_str:
+                try:
+                    s.day = date.fromisoformat(day_str)
+                except (ValueError, TypeError):
+                    pass
+            s.starting_equity = doc.get("starting_equity", 0.0)
+            s.peak_equity = doc.get("peak_equity", 0.0)
+            s.current_equity = doc.get("current_equity", 0.0)
+            s.consecutive_losses = doc.get("consecutive_losses", 0)
+            s.consecutive_wins = doc.get("consecutive_wins", 0)
+            s.halt_reason = doc.get("halt_reason", "")
+            s.loss_at_halt = doc.get("loss_at_halt", 0.0)
+            s.recovery_target = doc.get("recovery_target", 0.0)
+            halt_str = doc.get("halt_until")
+            if halt_str:
+                try:
+                    s.halt_until = datetime.fromisoformat(halt_str)
+                except (ValueError, TypeError):
+                    pass
+            log.info(
+                "[defense] Restored state: mode=%s, consecutive_losses=%d, equity=%.0f",
+                s.mode.value, s.consecutive_losses, s.current_equity,
+            )
+        except Exception as exc:
+            log.warning("[defense] state load failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Equity update (called each tick)
@@ -198,6 +263,7 @@ class DefenseManager:
                 )
                 send_alert(f"방어 모드 진입 | 일일 손실 {pnl_pct*100:.1f}% | 연속손실 {s.consecutive_losses}회")
 
+        self.save_state()
         return s.mode
 
     def _trigger_halt(self, reason: str, now: datetime, equity: float) -> None:
@@ -218,6 +284,7 @@ class DefenseManager:
             reason, s.halt_until.isoformat(),
         )
         send_alert(f"거래 중단! {reason} | {self.halt_duration_minutes}분 후 복구 모드 전환")
+        self.save_state()
 
     # ------------------------------------------------------------------
     # Trade outcome recording
@@ -238,6 +305,7 @@ class DefenseManager:
                 "Trade loss #%d recorded. PnL=%.0f KRW",
                 s.consecutive_losses, pnl,
             )
+        self.save_state()
 
     # ------------------------------------------------------------------
     # Entry gate — bot calls this before every trade

@@ -511,8 +511,30 @@ async function refreshAutoDiscovery() {
   } catch (e) { console.error("auto_discovery", e); }
 }
 
+/* ---- Tab switching ---- */
+function initTabs() {
+  const btns = document.querySelectorAll(".tab-btn");
+  btns.forEach(btn => {
+    btn.addEventListener("click", () => {
+      btns.forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      const target = document.getElementById(btn.dataset.tab);
+      if (target) target.classList.add("active");
+      // Refresh canvases when switching to their tab
+      const tabId = btn.dataset.tab;
+      if (tabId === "tab-dashboard") {
+        fetchJSON("/api/equity").then(d => renderEquity(d.equity || [])).catch(() => {});
+      } else if (tabId === "tab-markets") {
+        refreshChart();
+      }
+    });
+  });
+}
+
 /* ---- Init ---- */
 document.addEventListener("DOMContentLoaded", () => {
+  initTabs();
   $("btn-start").addEventListener("click", apiStart);
   $("btn-stop").addEventListener("click", apiStop);
   $("btn-refresh-chart").addEventListener("click", refreshChart);

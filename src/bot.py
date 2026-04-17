@@ -20,9 +20,10 @@ from __future__ import annotations
 import signal as signal_lib
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import List, Optional
 
-from config.settings import settings
+from config.settings import KST, settings
 from src.ai.trade_analyzer import TradeAnalyzer
 from src.ai.market_classifier import MarketClassifier, MarketAnalysis
 from src.ai.claude_advisor import ClaudeAdvisor
@@ -71,6 +72,8 @@ class TradingBot:
     _active_markets: List[str] = field(default_factory=list, init=False)
     _last_scores: list = field(default_factory=list, init=False)
     _last_market_states: dict = field(default_factory=dict, init=False)
+    _min_hold_seconds: int = 300  # 5 minutes minimum hold time
+    _last_trade_time: dict = field(default_factory=dict, init=False)
 
     def __post_init__(self):
         self.executor = Executor(exchange=self.exchange, mode=self.mode)
@@ -290,6 +293,14 @@ class TradingBot:
         )
 
         if signal.type == SignalType.BUY and (not position or position.quantity == 0):
+            # Cooldown: prevent re-entry too soon after last trade on this market
+            last_trade = self._last_trade_time.get(market)
+            if last_trade:
+                cooldown_secs = (datetime.now(KST) - last_trade).total_seconds()
+                if cooldown_secs < self._min_hold_seconds:
+                    log.debug("BUY skipped on %s — cooldown %.0fs", market, cooldown_secs)
+                    return
+
             # Block entry in prohibited market regimes
             if not mkt_analysis.trade_allowed:
                 log.info("BUY blocked on %s — %s", market, mkt_analysis.block_reason)
@@ -341,6 +352,15 @@ class TradingBot:
             )
 
         elif signal.type == SignalType.SELL and position and position.quantity > 0:
+            # Enforce minimum hold time for strategy-driven exits
+            if position.opened_at:
+                held_secs = (datetime.now(KST) - position.opened_at).total_seconds()
+                if held_secs < self._min_hold_seconds:
+                    log.debug(
+                        "SELL skipped on %s — held %.0fs < min %ds",
+                        market, held_secs, self._min_hold_seconds,
+                    )
+                    return
             self._execute_sell(market, position.quantity, current_price, reason=signal.reason)
             self.risk.clear_position_peak(market)
 
@@ -356,6 +376,7 @@ class TradingBot:
             take_profit=take_profit,
         )
         if order:
+            self._last_trade_time[market] = datetime.now(KST)
             self.trade_log.log_trade(
                 market=market, side="buy",
                 price=order.filled_price or price,
@@ -378,6 +399,7 @@ class TradingBot:
 
         order = self.executor.market_sell(market=market, quantity=quantity, current_price=price)
         if order:
+            self._last_trade_time[market] = datetime.now(KST)
             self.trade_log.log_trade(
                 market=market, side="sell",
                 price=order.filled_price or price,
@@ -430,6 +452,9 @@ class TradingBot:
     def stop(self) -> None:
         log.info("Stop signal received.")
         self._running = False
+        if self.executor.is_paper:
+            self.executor.paper.save_state()
+        self.defense.save_state()
 
     def _install_signal_handlers(self) -> None:
         for sig in (signal_lib.SIGINT, signal_lib.SIGTERM):

@@ -300,7 +300,7 @@ class AdaptiveEnsembleStrategy(Strategy):
         weight_used = 0.0
         reasons = []
         meta: dict = {"weights": dict(self.weights)}
-        strong_sell = False
+        strong_sell_count = 0
 
         for strat in self.members:
             w = float(self.weights.get(strat.name, 0.0))
@@ -319,14 +319,14 @@ class AdaptiveEnsembleStrategy(Strategy):
                 sell_score += w * sig.confidence
                 reasons.append(f"-{strat.name}(w={w:.2f}, c={sig.confidence:.2f})")
                 if sig.confidence >= 0.9:
-                    strong_sell = True
+                    strong_sell_count += 1
 
         denom = weight_used if weight_used > 0 else 1.0
         buy_norm = buy_score / denom
         sell_norm = sell_score / denom
         has_position = bool(position and position.get("quantity", 0) > 0)
 
-        if (sell_norm > buy_norm and sell_norm >= self.buy_threshold) or (has_position and strong_sell):
+        if sell_norm > buy_norm and sell_norm >= self.buy_threshold:
             return Signal(
                 SignalType.SELL,
                 confidence=min(1.0, sell_norm),

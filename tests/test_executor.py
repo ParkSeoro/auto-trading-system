@@ -21,7 +21,7 @@ class _StubExchange(Exchange):
 
 
 def test_paper_buy_and_sell_roundtrip():
-    broker = PaperBroker(cash=1_000_000, fee_rate=0.0005)
+    broker = PaperBroker(cash=1_000_000, fee_rate=0.0005, persist=False)
     order = broker.buy("KRW-BTC", funds_krw=500_000, price=50_000_000)
     assert order is not None
     bought_qty = broker.positions["KRW-BTC"].quantity
@@ -38,14 +38,14 @@ def test_paper_buy_and_sell_roundtrip():
 def test_paper_buy_below_min_rejected():
     # Pin min_order_krw so the test doesn't depend on the active exchange default
     # (Bithumb=1,000 / Upbit=5,000). At 500 KRW, buy must be rejected either way.
-    broker = PaperBroker(cash=10_000, min_order_krw=5_000)
+    broker = PaperBroker(cash=10_000, min_order_krw=5_000, persist=False)
     order = broker.buy("KRW-BTC", funds_krw=500, price=50_000_000)
     assert order is None
     assert "KRW-BTC" not in broker.positions
 
 
 def test_executor_paper_mode_defaults_paper():
-    ex = Executor(exchange=_StubExchange(), mode="paper")
+    ex = Executor(exchange=_StubExchange(), mode="paper", paper=PaperBroker(persist=False))
     assert ex.is_paper
     assert ex.get_position("KRW-BTC") is None
     order = ex.market_buy("KRW-BTC", funds_krw=500_000, current_price=50_000_000,
