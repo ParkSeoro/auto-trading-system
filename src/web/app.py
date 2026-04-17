@@ -236,9 +236,13 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
         if bot is None:
             return {"positions": []}
         out = []
-        for mkt in bot._active_markets:
-            pos = bot.executor.get_position(mkt)
-            if pos is None:
+        # Get ALL positions from executor, not just active_markets
+        if bot.executor.is_paper:
+            all_positions = dict(bot.executor.paper.positions)
+        else:
+            all_positions = dict(bot.executor._live_positions)
+        for mkt, pos in all_positions.items():
+            if pos.quantity <= 1e-12:
                 continue
             d = pos.to_dict()
             d["market"] = mkt
@@ -596,9 +600,12 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                             "active_markets": list(bot._active_markets),
                             "total_scored": len(bot._last_scores) if bot._last_scores else 0,
                         }
-                    for mkt in bot._active_markets:
-                        pos = bot.executor.get_position(mkt)
-                        if pos is None:
+                    all_pos = (
+                        bot.executor.paper.positions if bot.executor.is_paper
+                        else bot.executor._live_positions
+                    )
+                    for mkt, pos in all_pos.items():
+                        if pos.quantity <= 1e-12:
                             continue
                         d = pos.to_dict()
                         d["market"] = mkt
