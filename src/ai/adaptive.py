@@ -226,8 +226,9 @@ class AdaptiveEnsembleStrategy(Strategy):
             MACDCrossoverStrategy(),
             MultiTFMomentumStrategy(),
         ]
-        self.buy_threshold = buy_threshold
+        self.buy_threshold = max(0.45, buy_threshold)
         self.eta = eta
+        self._pending_adapt = False
         self.adapt_every = max(1, int(adapt_every))
         self.required_bars = max((m.required_bars for m in self.members), default=50)
         self.weights_path = Path(weights_path or (settings.data_dir / "weights.json"))
@@ -283,6 +284,10 @@ class AdaptiveEnsembleStrategy(Strategy):
                  {k: round(v, 3) for k, v in self.weights.items()}, rewards)
         return self.weights
 
+    def notify_trade_completed(self) -> None:
+        """Called by bot after a sell. Triggers weight re-adaptation on next generate()."""
+        self._pending_adapt = True
+
     # ------------------------------------------------------------------
     # Strategy API
     # ------------------------------------------------------------------
@@ -292,8 +297,9 @@ class AdaptiveEnsembleStrategy(Strategy):
             return invalid
 
         self._call_count += 1
-        if self._call_count % self.adapt_every == 0:
+        if self._pending_adapt or self._call_count % self.adapt_every == 0:
             self.adapt()
+            self._pending_adapt = False
 
         buy_score = 0.0
         sell_score = 0.0

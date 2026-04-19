@@ -49,7 +49,7 @@ class Settings:
     trading_mode: str = field(default_factory=lambda: os.getenv("TRADING_MODE", "paper").lower())
     paper_capital: float = field(default_factory=lambda: _get_float("PAPER_CAPITAL", 1_000_000.0))
 
-    max_position_pct: float = field(default_factory=lambda: _get_float("MAX_POSITION_PCT", 0.20))
+    max_position_pct: float = field(default_factory=lambda: _get_float("MAX_POSITION_PCT", 0.08))
     stop_loss_atr_mult: float = field(default_factory=lambda: _get_float("STOP_LOSS_ATR_MULT", 2.0))
     take_profit_atr_mult: float = field(default_factory=lambda: _get_float("TAKE_PROFIT_ATR_MULT", 3.0))
     max_daily_drawdown: float = field(default_factory=lambda: _get_float("MAX_DAILY_DRAWDOWN", 0.05))

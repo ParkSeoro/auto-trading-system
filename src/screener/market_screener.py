@@ -114,7 +114,11 @@ class MarketScreener:
         vol_current = float(volume.iloc[-1])
         if vol_avg > 0:
             vol_ratio = vol_current / vol_avg
-            result.volume_score = min(1.0, vol_ratio / 2.0)  # ratio=2 -> score 1.0
+            result.volume_score = min(1.0, vol_ratio / 2.0)
+            if vol_ratio < 1.0:
+                result.tradeable = False
+                result.reasons.append(f"illiquid ({vol_ratio:.2f}x avg)")
+                return result
             if vol_ratio < self.min_volume_ratio:
                 result.reasons.append(f"low volume ({vol_ratio:.2f}x avg)")
         else:

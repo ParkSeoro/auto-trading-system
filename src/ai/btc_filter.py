@@ -94,7 +94,7 @@ class BTCFilter:
 
         try:
             df_1h = md.get_ohlcv(self.btc_market, timeframe="1h", count=100)
-            df_4h = md.get_ohlcv(self.btc_market, timeframe="4h", count=60)
+            df_4h = md.get_ohlcv(self.btc_market, timeframe="6h", count=60)
         except Exception as exc:
             log.warning("BTC filter fetch failed: %s", exc)
             return self._last_state

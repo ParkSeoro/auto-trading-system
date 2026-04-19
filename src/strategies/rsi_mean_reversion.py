@@ -52,15 +52,19 @@ class RSIMeanReversionStrategy(Strategy):
                 meta={"rsi": float(current)},
             )
 
-        # Entry oversold with upward reversal in last bar
+        # Entry oversold with upward reversal + volume confirmation
         if not has_position and current <= self.oversold:
             prev = r.iloc[-2]
             if not pd.isna(prev) and current > prev:
+                vol_now = float(df["volume"].iloc[-1])
+                vol_avg = float(df["volume"].iloc[-21:-1].mean()) if len(df) > 21 else float(df["volume"].mean())
+                if vol_avg > 0 and vol_now < vol_avg * 0.5:
+                    return Signal.hold(f"RSI oversold but low volume ({vol_now/vol_avg:.1f}x)")
                 confidence = min(1.0, (self.oversold - current) / 25.0 + 0.5)
                 return Signal(
                     SignalType.BUY,
                     confidence=confidence,
-                    reason=f"RSI oversold reversal ({current:.1f})",
+                    reason=f"RSI oversold reversal ({current:.1f}, vol={vol_now/vol_avg:.1f}x)" if vol_avg > 0 else f"RSI oversold reversal ({current:.1f})",
                     meta={"rsi": float(current)},
                 )
 

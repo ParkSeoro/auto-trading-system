@@ -292,6 +292,8 @@ class TradingBot:
                     claude_advisor=self.claude,
                 )
                 self._apply_params_to_strategy(new_params)
+                # Re-register updated params so tuner knows new baseline
+                self._register_strategy_params()
         except Exception as exc:
             log.debug("auto-tuning check failed: %s", exc)
 
@@ -559,6 +561,9 @@ class TradingBot:
                 self.analyzer.update()
             except Exception:
                 pass
+            # Trigger adaptive weights update for next signal generation
+            if hasattr(self.strategy, 'notify_trade_completed'):
+                self.strategy.notify_trade_completed()
             # Check if auto-tuning is needed after this trade
             self._check_auto_tuning()
             pnl_sign = "+" if estimated_pnl >= 0 else ""

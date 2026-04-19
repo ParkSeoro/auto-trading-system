@@ -50,7 +50,8 @@ def _adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) ->
 
     plus_di = 100 * pd.Series(plus_dm, index=high.index).rolling(period).sum() / atr_series
     minus_di = 100 * pd.Series(minus_dm, index=high.index).rolling(period).sum() / atr_series
-    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    denominator = (plus_di + minus_di).clip(lower=0.001)
+    dx = 100 * (plus_di - minus_di).abs() / denominator
     return dx.rolling(period).mean()
 
 
@@ -74,32 +75,38 @@ def _rsi_divergence(close: pd.Series, rsi_series: pd.Series, lookback: int = 14)
     Bearish: price makes higher high, RSI makes lower high
     Bullish: price makes lower low, RSI makes higher low
     """
-    if len(close) < lookback + 2:
+    if len(close) < lookback + 2 or len(rsi_series) < lookback + 2:
         return "none"
     recent_close = close.iloc[-lookback:]
     recent_rsi = rsi_series.iloc[-lookback:]
+    if len(recent_close) < 4 or recent_rsi.isna().all():
+        return "none"
 
-    # Find idx of max/min within window
-    price_max_idx = recent_close.idxmax()
-    price_min_idx = recent_close.idxmin()
-
-    # Current bar
     curr_close = close.iloc[-1]
     curr_rsi = rsi_series.iloc[-1]
+    if pd.isna(curr_rsi):
+        return "none"
 
-    # Bearish: current close near recent high but RSI lower than at that high
-    if curr_close >= recent_close.max() * 0.995:
-        prior_max = recent_close.iloc[:-2].max() if len(recent_close) > 2 else 0
-        prior_rsi_at_max = recent_rsi[recent_close.iloc[:-2].idxmax()] if prior_max > 0 else 0
-        if prior_max > 0 and curr_close > prior_max and curr_rsi < prior_rsi_at_max - 3:
-            return "bearish"
-
-    # Bullish: current close near recent low but RSI higher than at that low
-    if curr_close <= recent_close.min() * 1.005:
-        prior_min = recent_close.iloc[:-2].min() if len(recent_close) > 2 else 0
-        prior_rsi_at_min = recent_rsi[recent_close.iloc[:-2].idxmin()] if prior_min > 0 else 0
-        if prior_min > 0 and curr_close < prior_min and curr_rsi > prior_rsi_at_min + 3:
-            return "bullish"
+    try:
+        prior_close = recent_close.iloc[:-2]
+        if len(prior_close) < 2:
+            return "none"
+        # Bearish: price makes higher high, RSI makes lower high
+        prior_max = prior_close.max()
+        if prior_max > 0 and curr_close > prior_max * 0.995:
+            prior_max_idx = prior_close.idxmax()
+            prior_rsi_val = rsi_series.loc[prior_max_idx]
+            if pd.notna(prior_rsi_val) and curr_close > prior_max and curr_rsi < prior_rsi_val - 3:
+                return "bearish"
+        # Bullish: price makes lower low, RSI makes higher low
+        prior_min = prior_close.min()
+        if prior_min > 0 and curr_close < prior_min * 1.005:
+            prior_min_idx = prior_close.idxmin()
+            prior_rsi_val = rsi_series.loc[prior_min_idx]
+            if pd.notna(prior_rsi_val) and curr_close < prior_min and curr_rsi > prior_rsi_val + 3:
+                return "bullish"
+    except (KeyError, IndexError):
+        pass
 
     return "none"
 
