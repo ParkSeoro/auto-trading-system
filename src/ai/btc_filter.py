@@ -99,8 +99,12 @@ class BTCFilter:
             log.warning("BTC filter fetch failed: %s", exc)
             return self._last_state
 
-        if df_1h.empty or len(df_1h) < 50 or df_4h.empty or len(df_4h) < 50:
+        if df_1h.empty or len(df_1h) < 20:
+            log.debug("BTC filter: insufficient 1h data (%d bars)", len(df_1h) if not df_1h.empty else 0)
             return self._last_state
+        if df_4h.empty or len(df_4h) < 10:
+            log.debug("BTC filter: insufficient 6h data (%d bars), using 1h only", len(df_4h) if not df_4h.empty else 0)
+            df_4h = df_1h
 
         state = self._classify(df_1h, df_4h)
         self._last_state = state
@@ -121,10 +125,10 @@ class BTCFilter:
         ema50_1h = ema(close_1h, 50)
         ema50_4h = ema(close_4h, 50)
 
-        last_1h = close_1h.iloc[-1]
-        last_ema20_1h = ema20_1h.iloc[-1]
-        last_ema50_1h = ema50_1h.iloc[-1]
-        last_ema50_4h = ema50_4h.iloc[-1]
+        last_1h = float(close_1h.iloc[-1])
+        last_ema20_1h = float(ema20_1h.iloc[-1]) if pd.notna(ema20_1h.iloc[-1]) else last_1h
+        last_ema50_1h = float(ema50_1h.iloc[-1]) if pd.notna(ema50_1h.iloc[-1]) else last_1h
+        last_ema50_4h = float(ema50_4h.iloc[-1]) if pd.notna(ema50_4h.iloc[-1]) else last_1h
 
         # Trend: price > EMA20 > EMA50 = up; price < EMA20 < EMA50 = down
         if last_1h > last_ema20_1h > last_ema50_1h:

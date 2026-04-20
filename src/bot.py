@@ -190,8 +190,16 @@ class TradingBot:
         except Exception as exc:
             log.debug("BTC filter update failed: %s", exc)
 
-        # Compute current equity for risk tracking
-        active = self._active_markets
+        # Build full market set: active markets + all held positions
+        active = list(self._active_markets)
+        if self.executor.is_paper:
+            held_positions = self.executor.paper.positions
+        else:
+            held_positions = self.executor._live_positions
+        for mkt, pos in held_positions.items():
+            if pos.quantity > 1e-12 and mkt not in active:
+                active.append(mkt)
+
         prices = {}
         for market in active:
             p = self.market_data.get_current_price(market)
@@ -323,6 +331,15 @@ class TradingBot:
         """Scan all exchange markets and select the best candidates."""
         # Keep markets with open positions so we don't abandon them
         held_markets = set()
+        # Check ALL executor positions, not just _active_markets
+        if self.executor.is_paper:
+            all_positions = self.executor.paper.positions
+        else:
+            all_positions = self.executor._live_positions
+        for m, pos in all_positions.items():
+            if pos.quantity > 1e-12:
+                held_markets.add(m)
+        # Also check _active_markets for positions
         for m in self._active_markets:
             pos = self.executor.get_position(m)
             if pos and pos.quantity > 0:

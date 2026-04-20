@@ -202,12 +202,20 @@ class RiskManager:
                 reason=f"size {size_krw:.0f} KRW below min order {self.min_order_krw:.0f}",
             )
 
+        # Price-aware rounding: low-price coins need more decimal places
+        if entry_price >= 1000:
+            price_digits = 0
+        elif entry_price >= 10:
+            price_digits = 2
+        else:
+            price_digits = 4
+
         sizing_tag = "structure-sized" if used_structure else f"ATR-sized (atr={a:.2f})"
         return RiskDecision(
             approved=True,
             position_size_krw=round(size_krw, 0),
-            stop_loss=round(stop_loss, 2),
-            take_profit=round(take_profit, 2),
+            stop_loss=round(stop_loss, price_digits),
+            take_profit=round(take_profit, price_digits),
             reason=f"{sizing_tag}, risk={risk_amount:.0f} KRW",
         )
 
@@ -280,7 +288,8 @@ class RiskManager:
             "Trailing stop %s: %.0f -> %.0f (peak=%.0f, ATR=%.0f)",
             market, current_sl or 0, trail_stop, peak, atr_val,
         )
-        return round(trail_stop, 2)
+        digits = 0 if avg_price >= 1000 else (2 if avg_price >= 10 else 4)
+        return round(trail_stop, digits)
 
     def clear_position_peak(self, market: str) -> None:
         """Call when a position is closed to clean up tracking."""
@@ -335,7 +344,8 @@ class RiskManager:
         if not changed:
             return None
 
-        return {"stop_loss": round(new_sl, 2), "take_profit": round(new_tp, 2)}
+        digits = 0 if avg_price >= 1000 else (2 if avg_price >= 10 else 4)
+        return {"stop_loss": round(new_sl, digits), "take_profit": round(new_tp, digits)}
 
     # ------------------------------------------------------------------
     # Analyzer-adjusted entry

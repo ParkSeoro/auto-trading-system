@@ -2,6 +2,13 @@
 const $ = (id) => document.getElementById(id);
 const fmt = (n, dp = 0) =>
   n == null || isNaN(n) ? "–" : Number(n).toLocaleString("ko-KR", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const fmtPrice = (n) => {
+  if (n == null || isNaN(n)) return "–";
+  const v = Number(n);
+  if (v >= 1000) return fmt(v, 0);
+  if (v >= 10) return fmt(v, 2);
+  return fmt(v, 4);
+};
 const pct = (n) => (n == null || isNaN(n)) ? "–" : (n * 100).toFixed(2) + "%";
 
 /* ---- Chart helpers ---- */
@@ -236,14 +243,16 @@ function renderPositions(rows) {
     const upnl = p.unrealised_pnl;
     const cls = upnl > 0 ? "pnl-pos" : upnl < 0 ? "pnl-neg" : "";
     const name = coinName(p.market);
+    const qty = Number(p.quantity || 0);
+    const qtyStr = qty >= 1 ? fmt(qty, 4) : qty.toFixed(8);
     return `<tr>
       <td><b>${p.market}</b><br><small style="color:var(--muted)">${name}</small></td>
-      <td>${Number(p.quantity || 0).toFixed(8)}</td>
-      <td>${fmt(p.avg_price, 0)}</td>
-      <td>${p.current_price ? fmt(p.current_price, 0) : "–"}</td>
+      <td>${qtyStr}</td>
+      <td>${fmtPrice(p.avg_price)}</td>
+      <td>${p.current_price ? fmtPrice(p.current_price) : "–"}</td>
       <td class="${cls}">${upnl != null ? fmt(upnl, 0) : "–"}</td>
-      <td>${p.stop_loss ? fmt(p.stop_loss, 0) : "–"}</td>
-      <td>${p.take_profit ? fmt(p.take_profit, 0) : "–"}</td>
+      <td>${p.stop_loss ? fmtPrice(p.stop_loss) : "–"}</td>
+      <td>${p.take_profit ? fmtPrice(p.take_profit) : "–"}</td>
     </tr>`;
   }).join("");
 }
