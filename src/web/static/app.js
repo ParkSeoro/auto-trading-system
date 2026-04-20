@@ -161,16 +161,29 @@ function renderTrades(rows) {
   if (!rows || !rows.length) {
     body.innerHTML = '<tr><td colspan="8" class="muted">거래 내역 없음</td></tr>'; return;
   }
-  body.innerHTML = rows.map(r => `<tr>
-    <td>${(r.ts || "").slice(0, 19).replace("T", " ")}</td>
-    <td>${r.market}</td>
-    <td class="side-${r.side}">${(r.side || "").toUpperCase()}</td>
-    <td>${Number(r.quantity || 0).toFixed(8)}</td>
-    <td>${fmt(r.price, 0)}</td>
-    <td>${fmt(r.fee, 1)}</td>
-    <td>${r.strategy || "-"}</td>
-    <td>${r.reason || ""}</td>
-  </tr>`).join("");
+  body.innerHTML = rows.map(r => {
+    const side = (r.side || "").toUpperCase();
+    const name = coinName(r.market);
+    const ts = (r.ts || "").slice(5, 16).replace("T", " ");
+    let pnlHtml = "--";
+    if (r.side === "sell" && r.pnl != null) {
+      const sign = r.pnl >= 0 ? "+" : "";
+      const cls = r.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+      const pctStr = r.pnl_pct != null ? ` (${sign}${r.pnl_pct}%)` : "";
+      pnlHtml = `<span class="${cls}">${sign}${fmt(r.pnl, 0)}원${pctStr}</span>`;
+    }
+    const reason = (r.reason || "").length > 40 ? (r.reason || "").slice(0, 40) + ".." : (r.reason || "");
+    return `<tr>
+      <td style="white-space:nowrap">${ts}</td>
+      <td><b>${r.market}</b><br><small style="color:var(--muted)">${name}</small></td>
+      <td class="side-${r.side}">${side}</td>
+      <td>${fmt(r.quantity, 4)}</td>
+      <td>${fmt(r.price, 0)}원</td>
+      <td>${pnlHtml}</td>
+      <td>${r.strategy || "-"}</td>
+      <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${r.reason || ''}">${reason}</td>
+    </tr>`;
+  }).join("");
 }
 
 function renderWeights(w) {

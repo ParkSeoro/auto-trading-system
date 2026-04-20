@@ -102,10 +102,28 @@ def _read_equity(limit: int = 500) -> List[dict]:
 def _read_trades(limit: int = 100) -> List[dict]:
     rows = _query(
         settings.db_path,
-        "SELECT ts, market, side, price, quantity, funds, fee, mode, strategy, reason "
+        "SELECT id, ts, market, side, price, quantity, funds, fee, mode, strategy, reason "
         "FROM trades ORDER BY id DESC LIMIT ?",
         (limit,),
     )
+    # Compute PnL for SELL trades by finding matching BUY
+    for row in rows:
+        row["pnl"] = None
+        if row.get("side") == "sell":
+            buy_rows = _query(
+                settings.db_path,
+                "SELECT price, quantity, fee FROM trades "
+                "WHERE market=? AND side='buy' AND id < ? ORDER BY id DESC LIMIT 1",
+                (row["market"], row["id"]),
+            )
+            if buy_rows:
+                buy = buy_rows[0]
+                sell_net = row["price"] * row["quantity"] - row["fee"]
+                buy_cost = buy["price"] * row["quantity"] + row["fee"]
+                row["pnl"] = round(sell_net - buy_cost, 0)
+                buy_price = buy["price"]
+                if buy_price > 0:
+                    row["pnl_pct"] = round((row["price"] - buy_price) / buy_price * 100, 2)
     return rows
 
 
