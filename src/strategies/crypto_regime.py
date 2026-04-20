@@ -146,6 +146,10 @@ class CryptoRegimeStrategy(Strategy):
     rsi_overbought: float = 72.0
     bb_period: int = 20
     bb_std: float = 2.0
+    _pending_adapt: bool = field(default=False, init=False, repr=False)
+
+    def notify_trade_completed(self) -> None:
+        self._pending_adapt = True
 
     def generate(self, df: pd.DataFrame, position: Optional[dict] = None) -> Signal:
         base = self._validate(df)

@@ -561,11 +561,12 @@ function connectWS() {
         renderWeights({ weights: d.weights || {} });
         renderLogs(d.logs || []);
         if (d.auto_discover) {
-          renderAutoDiscovery({
-            active: true,
-            markets: d.active_markets || [],
-            scores: [],
-          });
+          // Only update market count text, don't overwrite scores table
+          const summary = $("discovery-summary");
+          if (summary) {
+            const mkts = d.active_markets || [];
+            summary.textContent = `활성 ${mkts.length}개 종목: ${mkts.join(", ") || "–"}`;
+          }
         }
       }
     } catch (e) { console.error(e); }
@@ -643,10 +644,11 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(refreshChart, 60000);
   setInterval(() => fetchJSON("/api/analytics").then(renderAnalytics).catch(() => {}), 10000);
   setInterval(() => fetchJSON("/api/positions").then(d => renderPositions(d.positions || [])).catch(() => {}), 5000);
-  setInterval(refreshAutoDiscovery, 60000);
+  setInterval(refreshAutoDiscovery, 30000);
   setInterval(refreshDefensePanel, 5000);
   refreshDefensePanel();
   refreshMarketState();
+  refreshAutoDiscovery();
 
   window.addEventListener("resize", () => {
     fetchJSON("/api/equity").then(d => renderEquity(d.equity || []));

@@ -282,16 +282,36 @@ class TradingBot:
         """Check if strategy parameters need tuning based on recent performance."""
         try:
             all_stats = self.analyzer.get_all_stats()
-            strategy_stats = {}
+            total_trades = 0
+            total_wins = 0
+            total_losses = 0
+            total_pnl = 0.0
+            all_recent_pnl = []
+
             for key, stat in all_stats.items():
                 if "|" in key:
                     _, strat_name = key.split("|", 1)
                     if strat_name == self.strategy.name:
-                        for k2, v in stat.items():
-                            strategy_stats[k2] = strategy_stats.get(k2, 0) + v if isinstance(v, (int, float)) and v is not None else v
+                        total_trades += stat.get("total_trades", 0)
+                        total_wins += stat.get("wins", 0)
+                        total_losses += stat.get("losses", 0)
+                        total_pnl += stat.get("total_pnl", 0.0)
+                        all_recent_pnl.extend(stat.get("recent_pnl", []))
 
-            if not strategy_stats.get("total_trades"):
+            if total_trades < 5:
                 return
+
+            win_rate = total_wins / total_trades if total_trades > 0 else 0.0
+            expectancy = total_pnl / total_trades if total_trades > 0 else 0.0
+            strategy_stats = {
+                "total_trades": total_trades,
+                "wins": total_wins,
+                "losses": total_losses,
+                "win_rate": win_rate,
+                "total_pnl": total_pnl,
+                "expectancy": expectancy,
+                "recent_pnl": all_recent_pnl[-20:],
+            }
 
             if self.tuner.should_tune(self.strategy.name, strategy_stats):
                 new_params = self.tuner.apply_tuning(
@@ -300,7 +320,6 @@ class TradingBot:
                     claude_advisor=self.claude,
                 )
                 self._apply_params_to_strategy(new_params)
-                # Re-register updated params so tuner knows new baseline
                 self._register_strategy_params()
         except Exception as exc:
             log.debug("auto-tuning check failed: %s", exc)
@@ -553,26 +572,28 @@ class TradingBot:
             )
 
     def _execute_sell(self, market, quantity, price, reason):
-        # Estimate PnL from position to update defense manager
         position = self.executor.get_position(market)
-        estimated_pnl = 0.0
-        if position and position.avg_price > 0:
-            estimated_pnl = (price - position.avg_price) * quantity
+        avg_price = position.avg_price if position and position.avg_price > 0 else price
 
         order = self.executor.market_sell(market=market, quantity=quantity, current_price=price)
         if order:
             self._last_trade_time[market] = datetime.now(KST)
+            sell_price = order.filled_price or price
+            sell_qty = order.filled_volume or quantity
+            sell_fee = order.fee or 0.0
             self.trade_log.log_trade(
                 market=market, side="sell",
-                price=order.filled_price or price,
-                quantity=order.filled_volume or quantity,
+                price=sell_price,
+                quantity=sell_qty,
                 funds=order.funds or quantity * price,
-                fee=order.fee, mode=self.mode,
+                fee=sell_fee, mode=self.mode,
                 strategy=self.strategy.name, reason=reason,
                 order_id=order.id,
             )
-            # Notify defense manager of outcome (updates consecutive loss counter)
-            self.defense.record_trade_outcome(estimated_pnl)
+            # PnL with fees: sell proceeds - buy cost (both include fees)
+            buy_fee_est = avg_price * sell_qty * settings.active_fee_rate
+            realized_pnl = (sell_price * sell_qty - sell_fee) - (avg_price * sell_qty + buy_fee_est)
+            self.defense.record_trade_outcome(realized_pnl)
             # Re-analyze immediately so feedback is available for next trade
             try:
                 self.analyzer.update()

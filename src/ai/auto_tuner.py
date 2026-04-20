@@ -83,14 +83,13 @@ class AutoTuner:
     # Check if tuning is needed
     # ------------------------------------------------------------------
     def should_tune(self, strategy_name: str, stats: dict) -> bool:
-        """Return True if performance has dropped enough to warrant tuning."""
+        """Return True if enough trades have passed since last tuning."""
         total_trades = stats.get("total_trades", 0)
         last = self._trade_count_at_last_tune.get(strategy_name, 0)
 
         if total_trades - last < self.tune_every_n_trades:
             return False
 
-        # Check performance thresholds
         expectancy = stats.get("expectancy", 0.0)
         win_rate   = stats.get("win_rate", 0.5)
 
@@ -106,7 +105,13 @@ class AutoTuner:
                 strategy_name, win_rate * 100, self.min_win_rate * 100,
             )
             return True
-        return False
+
+        # Periodic optimization even for winning strategies
+        log.info(
+            "[AutoTuner] %s: periodic review (trades=%d, wr=%.0f%%, exp=%.0f)",
+            strategy_name, total_trades, win_rate * 100, expectancy,
+        )
+        return True
 
     # ------------------------------------------------------------------
     # Apply tuning (from Claude suggestion or rule-based fallback)
