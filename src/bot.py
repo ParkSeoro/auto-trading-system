@@ -101,8 +101,16 @@ class TradingBot:
         """Register current strategy parameters with the AutoTuner."""
         params = {}
         strat = self.strategy
+        # Common strategy params
         for attr in ("rsi_low", "rsi_high", "volume_min_mult", "volume_max_mult",
                       "sl_atr_mult", "tp_atr_mult", "k", "volume_factor"):
+            if hasattr(strat, attr):
+                params[attr] = getattr(strat, attr)
+        # crypto_regime specific params
+        for attr in ("adx_trend_threshold", "adx_range_threshold",
+                      "volume_expansion_mult", "min_rr_ratio",
+                      "sl_buffer_atr", "rsi_oversold", "rsi_overbought",
+                      "ema_fast", "ema_slow", "swing_lookback"):
             if hasattr(strat, attr):
                 params[attr] = getattr(strat, attr)
         if hasattr(strat, "members"):

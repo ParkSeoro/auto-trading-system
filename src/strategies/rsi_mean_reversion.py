@@ -56,8 +56,8 @@ class RSIMeanReversionStrategy(Strategy):
         if not has_position and current <= self.oversold:
             prev = r.iloc[-2]
             if not pd.isna(prev) and current > prev:
-                vol_now = float(df["volume"].iloc[-1])
-                vol_avg = float(df["volume"].iloc[-21:-1].mean()) if len(df) > 21 else float(df["volume"].mean())
+                vol_now = float(df["volume"].iloc[-2]) if len(df) > 2 else float(df["volume"].iloc[-1])
+                vol_avg = float(df["volume"].iloc[-22:-2].mean()) if len(df) > 22 else float(df["volume"].iloc[:-1].mean())
                 if vol_avg > 0 and vol_now < vol_avg * 0.5:
                     return Signal.hold(f"RSI oversold but low volume ({vol_now/vol_avg:.1f}x)")
                 confidence = min(1.0, (self.oversold - current) / 25.0 + 0.5)

@@ -180,9 +180,14 @@ class CryptoRegimeStrategy(Strategy):
         curr_bb_l = float(bb_l.iloc[-1])
         bb_width = (curr_bb_u - curr_bb_l) / curr_bb_m if curr_bb_m > 0 else 0
 
-        # Volume expansion (current vs last 20 avg)
-        avg_vol = float(volume.iloc[-21:-1].mean())
-        curr_vol = float(volume.iloc[-1])
+        # Volume expansion: use last completed bar (iloc[-2]) to avoid
+        # incomplete current bar bias (e.g., 1d bar at 8AM = only 33% of day)
+        if len(volume) > 22:
+            avg_vol = float(volume.iloc[-22:-2].mean())
+            curr_vol = float(volume.iloc[-2])
+        else:
+            avg_vol = float(volume.iloc[:-1].mean()) if len(volume) > 1 else 1.0
+            curr_vol = float(volume.iloc[-2]) if len(volume) > 1 else 0.0
         vol_ratio = curr_vol / avg_vol if avg_vol > 0 else 0
 
         # Structure levels

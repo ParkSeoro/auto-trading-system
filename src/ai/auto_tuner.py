@@ -183,24 +183,34 @@ class AutoTuner:
         profit_factor = stats.get("profit_factor") or 0.0
 
         adj = {}
-        # Low win rate → tighten RSI range (more selective entries)
-        if win_rate < 0.40:
-            rsi_low = params.get("rsi_low", 25.0)
-            rsi_high = params.get("rsi_high", 40.0)
-            adj["rsi_low"]  = rsi_low + 2
-            adj["rsi_high"] = rsi_high - 2
+        is_crypto_regime = "adx_trend_threshold" in params
 
-        # Negative expectancy → reduce SL, widen TP
-        if expectancy < 0:
-            sl = params.get("sl_atr_mult", 1.5)
-            tp = params.get("tp_atr_mult", 2.5)
-            adj["sl_atr_mult"] = max(1.0, sl - 0.2)
-            adj["tp_atr_mult"] = min(4.0, tp + 0.3)
-
-        # Low profit factor → raise volume threshold (better quality)
-        if profit_factor < 1.2:
-            vol = params.get("volume_min_mult", 1.5)
-            adj["volume_min_mult"] = min(2.0, vol + 0.1)
+        if is_crypto_regime:
+            # crypto_regime specific tuning
+            if win_rate < 0.40:
+                adj["rsi_oversold"] = params.get("rsi_oversold", 30.0) + 2
+                adj["rsi_overbought"] = params.get("rsi_overbought", 72.0) - 2
+                adj["adx_trend_threshold"] = params.get("adx_trend_threshold", 22.0) + 1
+            if expectancy < 0:
+                adj["sl_buffer_atr"] = max(0.1, params.get("sl_buffer_atr", 0.3) - 0.05)
+                adj["min_rr_ratio"] = min(3.0, params.get("min_rr_ratio", 1.5) + 0.2)
+            if profit_factor < 1.2:
+                adj["volume_expansion_mult"] = min(2.5, params.get("volume_expansion_mult", 1.5) + 0.1)
+        else:
+            # Generic strategy tuning
+            if win_rate < 0.40:
+                rsi_low = params.get("rsi_low", 25.0)
+                rsi_high = params.get("rsi_high", 40.0)
+                adj["rsi_low"]  = rsi_low + 2
+                adj["rsi_high"] = rsi_high - 2
+            if expectancy < 0:
+                sl = params.get("sl_atr_mult", 1.5)
+                tp = params.get("tp_atr_mult", 2.5)
+                adj["sl_atr_mult"] = max(1.0, sl - 0.2)
+                adj["tp_atr_mult"] = min(4.0, tp + 0.3)
+            if profit_factor < 1.2:
+                vol = params.get("volume_min_mult", 1.5)
+                adj["volume_min_mult"] = min(2.0, vol + 0.1)
 
         return adj, "rule_based"
 
@@ -214,6 +224,17 @@ class AutoTuner:
         "volume_max_mult":(2.0, 5.0),
         "sl_atr_mult":    (0.8, 2.5),
         "tp_atr_mult":    (1.5, 5.0),
+        # crypto_regime specific
+        "adx_trend_threshold": (18.0, 30.0),
+        "adx_range_threshold": (12.0, 22.0),
+        "volume_expansion_mult": (1.2, 2.5),
+        "min_rr_ratio":   (1.2, 3.0),
+        "sl_buffer_atr":  (0.1, 0.8),
+        "rsi_oversold":   (20.0, 40.0),
+        "rsi_overbought": (65.0, 80.0),
+        "ema_fast":       (10, 30),
+        "ema_slow":       (30, 70),
+        "swing_lookback": (5, 20),
     }
 
     def _clamp(self, key: str, val: float) -> float:
