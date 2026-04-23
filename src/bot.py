@@ -612,10 +612,10 @@ class TradingBot:
                 self.strategy.notify_trade_completed()
             # Check if auto-tuning is needed after this trade
             self._check_auto_tuning()
-            pnl_sign = "+" if estimated_pnl >= 0 else ""
+            pnl_sign = "+" if realized_pnl >= 0 else ""
             send_alert(
                 f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason} | "
-                f"PnL≈{pnl_sign}{estimated_pnl:,.0f} KRW | mode={self.defense.mode}"
+                f"PnL≈{pnl_sign}{realized_pnl:,.0f} KRW | mode={self.defense.mode}"
             )
 
     # ------------------------------------------------------------------
