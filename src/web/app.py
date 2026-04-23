@@ -119,7 +119,7 @@ def _read_trades(limit: int = 100) -> List[dict]:
             if buy_rows:
                 buy = buy_rows[0]
                 sell_net = row["price"] * row["quantity"] - row["fee"]
-                buy_cost = buy["price"] * row["quantity"] + row["fee"]
+                buy_cost = buy["price"] * row["quantity"] + buy["fee"]
                 row["pnl"] = round(sell_net - buy_cost, 0)
                 buy_price = buy["price"]
                 if buy_price > 0:
