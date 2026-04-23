@@ -110,8 +110,9 @@ class MarketScreener:
             return result
 
         # --- Volume score ---
-        vol_avg = float(volume.iloc[-21:-1].mean()) if len(volume) > 21 else float(volume.mean())
-        vol_current = float(volume.iloc[-1])
+        # Use last completed bar (iloc[-2]) to avoid incomplete current bar bias
+        vol_avg = float(volume.iloc[-22:-2].mean()) if len(volume) > 22 else float(volume.iloc[:-1].mean()) if len(volume) > 1 else 1.0
+        vol_current = float(volume.iloc[-2]) if len(volume) > 1 else 0.0
         if vol_avg > 0:
             vol_ratio = vol_current / vol_avg
             result.volume_score = min(1.0, vol_ratio / 2.0)

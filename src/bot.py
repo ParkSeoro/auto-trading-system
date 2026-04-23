@@ -311,11 +311,20 @@ class TradingBot:
 
             win_rate = total_wins / total_trades if total_trades > 0 else 0.0
             expectancy = total_pnl / total_trades if total_trades > 0 else 0.0
+            gross_wins = sum(p for p in all_recent_pnl if p > 0)
+            gross_losses = abs(sum(p for p in all_recent_pnl if p < 0))
+            if gross_losses > 0:
+                profit_factor = gross_wins / gross_losses
+            elif gross_wins > 0:
+                profit_factor = float("inf")
+            else:
+                profit_factor = 0.0
             strategy_stats = {
                 "total_trades": total_trades,
                 "wins": total_wins,
                 "losses": total_losses,
                 "win_rate": win_rate,
+                "profit_factor": profit_factor,
                 "total_pnl": total_pnl,
                 "expectancy": expectancy,
                 "recent_pnl": all_recent_pnl[-20:],
