@@ -170,14 +170,22 @@ class CryptoRegimeStrategy(Strategy):
         bb_u, bb_m, bb_l = bollinger_bands(close, self.bb_period, self.bb_std)
 
         curr_close = float(close.iloc[-1])
-        curr_ema_f = float(ema_f.iloc[-1])
-        curr_ema_s = float(ema_s.iloc[-1])
-        curr_rsi = float(rsi_s.iloc[-1])
+        # Guard against NaN from indicators warming up on short data
+        last_vals = {
+            "ema_f": ema_f.iloc[-1], "ema_s": ema_s.iloc[-1],
+            "rsi":   rsi_s.iloc[-1], "atr":   atr_s.iloc[-1],
+            "bb_u":  bb_u.iloc[-1],  "bb_m":  bb_m.iloc[-1], "bb_l": bb_l.iloc[-1],
+        }
+        if any(pd.isna(v) for v in last_vals.values()):
+            return Signal.hold("CR: 지표 워밍업")
+        curr_ema_f = float(last_vals["ema_f"])
+        curr_ema_s = float(last_vals["ema_s"])
+        curr_rsi   = float(last_vals["rsi"])
         curr_adx = float(adx_s.iloc[-1]) if pd.notna(adx_s.iloc[-1]) else 15.0
-        curr_atr = float(atr_s.iloc[-1])
-        curr_bb_u = float(bb_u.iloc[-1])
-        curr_bb_m = float(bb_m.iloc[-1])
-        curr_bb_l = float(bb_l.iloc[-1])
+        curr_atr = float(last_vals["atr"])
+        curr_bb_u = float(last_vals["bb_u"])
+        curr_bb_m = float(last_vals["bb_m"])
+        curr_bb_l = float(last_vals["bb_l"])
         bb_width = (curr_bb_u - curr_bb_l) / curr_bb_m if curr_bb_m > 0 else 0
 
         # Volume expansion: use last completed bar (iloc[-2]) to avoid

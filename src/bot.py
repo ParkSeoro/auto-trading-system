@@ -614,7 +614,7 @@ class TradingBot:
             self._check_auto_tuning()
             pnl_sign = "+" if realized_pnl >= 0 else ""
             send_alert(
-                f"SELL {market} qty={quantity:.8f} @ {price:,.0f} KRW | {reason} | "
+                f"SELL {market} qty={sell_qty:.8f} @ {sell_price:,.0f} KRW | {reason} | "
                 f"PnL≈{pnl_sign}{realized_pnl:,.0f} KRW | mode={self.defense.mode}"
             )
 

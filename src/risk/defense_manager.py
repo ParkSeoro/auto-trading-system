@@ -294,13 +294,14 @@ class DefenseManager:
             if s.mode == TradingMode.DEFENSE and s.session_pnl_pct() > -self.defense_loss_pct:
                 s.mode = TradingMode.NORMAL
                 log.info("Defense mode lifted after win. PnL=%.0f KRW", pnl)
-        else:
+        elif pnl < 0:
             s.consecutive_wins = 0
             s.consecutive_losses += 1
             log.warning(
                 "Trade loss #%d recorded. PnL=%.0f KRW",
                 s.consecutive_losses, pnl,
             )
+        # pnl == 0 (exact breakeven) is neutral — leaves streaks unchanged
         self.save_state()
 
     # ------------------------------------------------------------------
