@@ -56,9 +56,12 @@ class PaperBroker:
     positions: Dict[str, Position] = field(default_factory=dict)
     trade_log: List[dict] = field(default_factory=list)
     persist: bool = True
+    original_capital: float = 0.0
 
     def __post_init__(self):
         self._state_path: Path = settings.data_dir / "paper_state.json"
+        if not self.original_capital:
+            self.original_capital = self.cash
         if self.persist:
             self._load_state()
 
@@ -74,6 +77,7 @@ class PaperBroker:
             return
         doc = {
             "cash": self.cash,
+            "original_capital": self.original_capital,
             "positions": {
                 mkt: {
                     "quantity": pos.quantity,
@@ -101,6 +105,9 @@ class PaperBroker:
         try:
             doc = json.loads(self._state_path.read_text(encoding="utf-8"))
             self.cash = doc.get("cash", self.cash)
+            saved_original = doc.get("original_capital")
+            if saved_original and saved_original > 0:
+                self.original_capital = saved_original
             for mkt, pdata in doc.get("positions", {}).items():
                 opened = None
                 if pdata.get("opened_at"):

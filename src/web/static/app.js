@@ -139,13 +139,19 @@ function renderStatus(st) {
   if (discCard) discCard.style.display = (st.running && st.auto_discover) ? "" : "none";
 }
 
-function renderEquity(series) {
-  drawLine($("eqchart"), series, "equity", "rgb(77,211,255)", 0.3);
+let _originalCapital = null;
+let _fullEquitySeries = null;
+
+function renderEquity(series, originalCapital) {
+  if (originalCapital) _originalCapital = originalCapital;
+  if (series.length > 10) _fullEquitySeries = series;
+  const toPlot = _fullEquitySeries || series;
+  drawLine($("eqchart"), toPlot, "equity", "rgb(77,211,255)", 0.3);
   if (series.length) {
-    const last = series[series.length - 1], first = series[0];
+    const last = series[series.length - 1];
     $("kpi-equity").textContent = fmt(last.equity) + " KRW";
     $("kpi-cash").textContent = fmt(last.cash) + " KRW";
-    $("kpi-start").textContent = fmt(first.equity) + " KRW";
+    $("kpi-start").textContent = fmt(_originalCapital || (toPlot[0] && toPlot[0].equity) || last.equity) + " KRW";
     $("mini-equity").textContent = fmt(last.equity);
   }
 }
@@ -453,7 +459,7 @@ async function refreshSnapshot() {
       fetchJSON("/api/positions"), fetchJSON("/api/analytics"),
     ]);
     renderStatus(s);
-    renderEquity(e.equity || []);
+    renderEquity(e.equity || [], e.original_capital);
     renderTrades(t.trades || []);
     renderWeights(w || {});
     renderPositions(p.positions || []);
@@ -556,7 +562,17 @@ function connectWS() {
       const d = JSON.parse(ev.data);
       if (d.type === "tick") {
         renderStatus(d.status || {});
-        renderEquity(d.equity_tail || []);
+        if (d.equity_tail && d.equity_tail.length) {
+          const last = d.equity_tail[d.equity_tail.length - 1];
+          $("kpi-equity").textContent = fmt(last.equity) + " KRW";
+          $("kpi-cash").textContent = fmt(last.cash) + " KRW";
+          $("mini-equity").textContent = fmt(last.equity);
+          if (_fullEquitySeries && _fullEquitySeries.length) {
+            _fullEquitySeries.push(last);
+            if (_fullEquitySeries.length > 1000) _fullEquitySeries = _fullEquitySeries.slice(-500);
+            drawLine($("eqchart"), _fullEquitySeries, "equity", "rgb(77,211,255)", 0.3);
+          }
+        }
         renderTrades(d.trades_tail || []);
         renderWeights({ weights: d.weights || {} });
         renderLogs(d.logs || []);
@@ -594,7 +610,7 @@ function initTabs() {
       // Refresh canvases when switching to their tab
       const tabId = btn.dataset.tab;
       if (tabId === "tab-dashboard") {
-        fetchJSON("/api/equity").then(d => renderEquity(d.equity || [])).catch(() => {});
+        fetchJSON("/api/equity").then(d => renderEquity(d.equity || [], d.original_capital)).catch(() => {});
       } else if (tabId === "tab-markets") {
         refreshChart();
       }
@@ -646,12 +662,13 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(() => fetchJSON("/api/positions").then(d => renderPositions(d.positions || [])).catch(() => {}), 5000);
   setInterval(refreshAutoDiscovery, 30000);
   setInterval(refreshDefensePanel, 5000);
+  setInterval(() => fetchJSON("/api/equity").then(d => renderEquity(d.equity || [], d.original_capital)).catch(() => {}), 30000);
   refreshDefensePanel();
   refreshMarketState();
   refreshAutoDiscovery();
 
   window.addEventListener("resize", () => {
-    fetchJSON("/api/equity").then(d => renderEquity(d.equity || []));
+    fetchJSON("/api/equity").then(d => renderEquity(d.equity || [], d.original_capital));
     refreshChart();
   });
 });

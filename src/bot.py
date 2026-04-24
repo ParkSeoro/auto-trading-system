@@ -82,6 +82,16 @@ class TradingBot:
     def __post_init__(self):
         self.executor = Executor(exchange=self.exchange, mode=self.mode)
         self.market_data = MarketData(exchange=self.exchange, ttl_sec=15)
+        if self.executor.is_paper:
+            loaded_equity = self.executor.paper.cash + sum(
+                p.quantity * p.avg_price for p in self.executor.paper.positions.values()
+            )
+            if loaded_equity > 0 and loaded_equity != self.starting_capital:
+                log.info(
+                    "Using loaded equity %.0f (not default %.0f) for risk sizing",
+                    loaded_equity, self.starting_capital,
+                )
+                self.starting_capital = loaded_equity
         self.risk = RiskManager(capital=self.starting_capital)
         self.trade_log = TradeLog(settings.db_path)
         self.analyzer = TradeAnalyzer()
@@ -216,6 +226,7 @@ class TradingBot:
 
         equity = self._current_equity(prices)
         self.risk.update_equity(equity)
+        self.risk.capital = equity
         defense_mode = self.defense.update_equity(equity)
 
         # Track open position count for max_open_positions limit

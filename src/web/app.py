@@ -238,7 +238,14 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
 
     @app.get("/api/equity")
     def api_equity(limit: int = 500):
-        return {"equity": _read_equity(limit=limit)}
+        bot = mgr.current_bot()
+        original_capital = settings.paper_capital
+        if bot and bot.executor.is_paper:
+            original_capital = bot.executor.paper.original_capital or settings.paper_capital
+        return {
+            "equity": _read_equity(limit=limit),
+            "original_capital": original_capital,
+        }
 
     @app.get("/api/trades")
     def api_trades(limit: int = 100):
