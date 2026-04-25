@@ -227,7 +227,7 @@ class AutoTuner:
         # crypto_regime specific
         "adx_trend_threshold": (18.0, 30.0),
         "adx_range_threshold": (12.0, 22.0),
-        "volume_expansion_mult": (1.2, 2.5),
+        "volume_expansion_mult": (0.5, 1.5),
         "min_rr_ratio":   (1.2, 3.0),
         "sl_buffer_atr":  (0.1, 0.8),
         "rsi_oversold":   (20.0, 40.0),

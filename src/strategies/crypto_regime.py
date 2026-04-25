@@ -135,7 +135,7 @@ class CryptoRegimeStrategy(Strategy):
 
     adx_trend_threshold: float = 22.0
     adx_range_threshold: float = 18.0
-    volume_expansion_mult: float = 1.5
+    volume_expansion_mult: float = 0.8
     min_rr_ratio: float = 1.5
     swing_lookback: int = 10
     sl_buffer_atr: float = 0.3
@@ -239,10 +239,11 @@ class CryptoRegimeStrategy(Strategy):
             return Signal.hold(f"CR: 보유 (수익률 {profit_pct*100:+.2f}%)")
 
         # --- Entry logic ---
-        # Skip if insufficient volume expansion
-        if vol_ratio < self.volume_expansion_mult:
+        # Minimum volume floor — below this, market is too quiet for any entry
+        min_vol = 0.7
+        if vol_ratio < min_vol:
             return Signal.hold(
-                f"CR: 거래량 부족 ({vol_ratio:.2f}x < {self.volume_expansion_mult}x)"
+                f"CR: 거래량 부족 ({vol_ratio:.2f}x < {min_vol}x)"
             )
 
         # Skip bearish divergence
@@ -252,12 +253,14 @@ class CryptoRegimeStrategy(Strategy):
 
         # --- Regime-specific entries ---
         # 1) TREND REGIME: buy pullback to EMA20 in uptrend
+        #    Normal volume is fine — pullbacks often have lower volume
         if ema_trending_up and curr_rsi > 40 and curr_rsi < 70:
-            dist_to_ema_f = abs(curr_close - curr_ema_f) / curr_ema_f
-            # Buy when pulling back to EMA20 (within 1% of it) but not below EMA50
-            if dist_to_ema_f < 0.02 and curr_close > curr_ema_s:
-                sl = swing_low - curr_atr * self.sl_buffer_atr
-                tp_target = swing_high
+            dist_to_ema_f = abs(curr_close - curr_ema_f) / curr_ema_f if curr_ema_f > 0 else 0
+            if dist_to_ema_f < 0.04 and curr_close > curr_ema_s:
+                # Trend: ATR-based SL/TP (swing-based doesn't work in strong trends
+                # because swing_high ≈ current price → reward too small)
+                sl = curr_close - curr_atr * 1.5
+                tp_target = curr_close + curr_atr * 3.0
                 risk = curr_close - sl
                 reward = tp_target - curr_close
                 if risk > 0 and reward / risk >= self.min_rr_ratio:
@@ -266,7 +269,7 @@ class CryptoRegimeStrategy(Strategy):
                         confidence=min(0.95, 0.6 + curr_adx / 100),
                         reason=(
                             f"CR: 추세장 풀백 매수 (ADX={curr_adx:.0f}, "
-                            f"R:R={reward/risk:.2f}, vol={vol_ratio:.1f}x)"
+                            f"R:R={reward/risk:.1f}, vol={vol_ratio:.1f}x)"
                         ),
                         meta={"sl_suggest": sl, "tp_suggest": tp_target, "regime": "trend"},
                     )
