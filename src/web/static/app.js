@@ -204,20 +204,67 @@ function renderWeights(w) {
   const weights = (typeof raw === "object" && raw.weights && typeof raw.weights === "object")
     ? raw.weights : raw;
   const box = $("weights-box");
-  const entries = Object.entries(weights).filter(([k]) => typeof weights[k] === "number");
-  if (!entries.length) {
-    box.innerHTML = '<div class="muted">거래가 일정량 쌓이면 자동으로 학습됩니다.</div>';
+  const activeStrat = w.active_strategy || "";
+  const tunerParams = w.tuner_params || {};
+  const tunerHistory = w.tuner_history || [];
+
+  if (activeStrat === "adaptive_ensemble") {
+    // Show ensemble member weights
+    const entries = Object.entries(weights).filter(([k]) => typeof weights[k] === "number");
+    if (!entries.length) {
+      box.innerHTML = '<div class="muted">거래가 쌓이면 전략 가중치가 자동 조정됩니다.</div>';
+    } else {
+      box.innerHTML = entries.sort((a, b) => b[1] - a[1]).map(([name, v]) => {
+        const p = Math.round(v * 1000) / 10;
+        return `<div class="weight-row"><div>
+          <div style="font-size:12px;color:#e8ecff;margin-bottom:3px;">${name}</div>
+          <div class="weight-bar"><span style="width:${p}%"></span></div>
+        </div><div class="weight-label">${p.toFixed(1)}%</div></div>`;
+      }).join("");
+    }
   } else {
-    box.innerHTML = entries.sort((a, b) => b[1] - a[1]).map(([name, v]) => {
-      const p = Math.round(v * 1000) / 10;
-      return `<div class="weight-row"><div>
-        <div style="font-size:12px;color:#e8ecff;margin-bottom:3px;">${name}</div>
-        <div class="weight-bar"><span style="width:${p}%"></span></div>
-      </div><div class="weight-label">${p.toFixed(1)}%</div></div>`;
-    }).join("");
+    // Show auto-tuner parameters for the active strategy
+    const params = Object.entries(tunerParams);
+    if (!params.length) {
+      box.innerHTML = `<div class="muted">전략: <b>${activeStrat || "없음"}</b><br>봇 시작 후 파라미터가 등록됩니다.</div>`;
+    } else {
+      const paramNames = {
+        adx_trend_threshold: "ADX 추세 임계값",
+        adx_range_threshold: "ADX 횡보 임계값",
+        volume_expansion_mult: "거래량 확장 배수",
+        min_rr_ratio: "최소 R:R 비율",
+        sl_buffer_atr: "손절 ATR 버퍼",
+        rsi_oversold: "RSI 과매도",
+        rsi_overbought: "RSI 과매수",
+        ema_fast: "EMA 단기",
+        ema_slow: "EMA 장기",
+        swing_lookback: "스윙 룩백",
+      };
+      box.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">전략: <b style="color:#4dd3ff">${activeStrat}</b> · 거래 누적 시 자동 튜닝</div>` +
+        params.map(([k, v]) => {
+          const label = paramNames[k] || k;
+          const val = typeof v === "number" ? v.toFixed(2) : v;
+          return `<div class="weight-row"><div>
+            <div style="font-size:12px;color:#e8ecff;margin-bottom:3px;">${label}</div>
+            <div class="weight-bar"><span style="width:${Math.min(100, Math.abs(Number(v)) * 2)}%;background:linear-gradient(90deg,#4dd3ff,#8b6cef)"></span></div>
+          </div><div class="weight-label">${val}</div></div>`;
+        }).join("");
+    }
   }
+
+  // Show evolution info
   const bp = w.best_params || {};
-  $("best-params").textContent = JSON.stringify(bp, null, 2);
+  let evolutionText = "";
+  if (tunerHistory.length) {
+    evolutionText = tunerHistory.map(h =>
+      `[${(h.ts||"").slice(5,16).replace("T"," ")}] ${h.strategy}: ${h.trigger} (예상 +${h.expected_improvement}%)`
+    ).join("\n");
+  } else if (Object.keys(bp).length) {
+    evolutionText = JSON.stringify(bp, null, 2);
+  } else {
+    evolutionText = "아직 튜닝 이력 없음 — 거래 5건 이상 누적 시 자동 진화 시작";
+  }
+  $("best-params").textContent = evolutionText;
 }
 
 const COIN_NAMES = {
@@ -574,7 +621,13 @@ function connectWS() {
           }
         }
         renderTrades(d.trades_tail || []);
-        renderWeights({ weights: d.weights || {} });
+        renderWeights({
+          weights: d.weights || {},
+          best_params: d.best_params || {},
+          active_strategy: d.active_strategy || "",
+          tuner_params: d.tuner_params || {},
+          tuner_history: d.tuner_history || [],
+        });
         renderLogs(d.logs || []);
         if (d.auto_discover) {
           // Only update market count text, don't overwrite scores table

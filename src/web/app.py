@@ -253,7 +253,20 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
 
     @app.get("/api/weights")
     def api_weights():
-        return {"weights": _read_weights(), "best_params": _read_best_params()}
+        bot = mgr.current_bot()
+        active_strategy = bot.strategy.name if bot else ""
+        tuner_params = {}
+        tuner_history = []
+        if bot:
+            tuner_params = bot.tuner.get_params(active_strategy)
+            tuner_history = bot.tuner.get_history()
+        return {
+            "weights": _read_weights(),
+            "best_params": _read_best_params(),
+            "active_strategy": active_strategy,
+            "tuner_params": tuner_params,
+            "tuner_history": tuner_history,
+        }
 
     @app.get("/api/positions")
     def api_positions():
@@ -641,6 +654,13 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                         d = pos.to_dict()
                         d["market"] = mkt
                         positions.append(d)
+                active_strategy = ""
+                tuner_params = {}
+                tuner_history = []
+                if bot:
+                    active_strategy = bot.strategy.name
+                    tuner_params = bot.tuner.get_params(active_strategy)
+                    tuner_history = bot.tuner.get_history()
                 payload = {
                     "type": "tick",
                     "ts": datetime.now(KST).isoformat(),
@@ -648,6 +668,10 @@ def create_app(manager: Optional[BotManager] = None) -> FastAPI:
                     "equity_tail": _read_equity(limit=50),
                     "trades_tail": _read_trades(limit=10),
                     "weights": _read_weights(),
+                    "best_params": _read_best_params(),
+                    "active_strategy": active_strategy,
+                    "tuner_params": tuner_params,
+                    "tuner_history": tuner_history,
                     "positions": positions,
                     "logs": LOG_BUFFER.tail(limit=30),
                     **auto_info,

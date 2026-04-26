@@ -131,6 +131,24 @@ class TradingBot:
         if params:
             self.tuner.register_strategy(self.strategy.name, params)
             log.info("AutoTuner registered: %s params=%s", self.strategy.name, params)
+            self._persist_best_params(params)
+
+    def _persist_best_params(self, params: dict) -> None:
+        """Write current strategy params to best_params.json for dashboard display."""
+        import json
+        bp_path = settings.data_dir / "best_params.json"
+        try:
+            existing = {}
+            if bp_path.exists():
+                existing = json.loads(bp_path.read_text(encoding="utf-8"))
+            existing[self.strategy.name] = {
+                "strategy": self.strategy.name,
+                "params": params,
+            }
+            bp_path.parent.mkdir(parents=True, exist_ok=True)
+            bp_path.write_text(json.dumps(existing, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception as exc:
+            log.debug("best_params write failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Bot loop
