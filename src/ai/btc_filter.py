@@ -164,7 +164,7 @@ class BTCFilter:
         # Volume spike (current 1h > 2x of recent avg)
         recent_vol = df_1h["volume"].iloc[-20:-1].mean()
         current_vol = df_1h["volume"].iloc[-1]
-        volume_spike = current_vol > recent_vol * 2.0
+        volume_spike = bool(current_vol > recent_vol * 2.0)
 
         # --- Regime classification ---
         regime = "neutral"
