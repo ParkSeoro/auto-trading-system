@@ -64,9 +64,19 @@ class MarketScreener:
         Long EMA period for trend detection.
     min_score : float
         Minimum total score (0~1) to be considered tradeable.
+    min_price_krw : float
+        Minimum price in KRW — filters out penny/junk coins.
+    min_daily_volume_krw : float
+        Minimum 24h trading volume in KRW — filters out illiquid markets.
     weights : dict
         Weight for each score dimension.
     """
+
+    # Coins to always exclude (stablecoins, wrapped, known problematic)
+    EXCLUDE_COINS = {
+        "KRW-USDT", "KRW-USDC", "KRW-DAI", "KRW-BUSD", "KRW-TUSD",
+        "KRW-STABLE",
+    }
 
     def __init__(
         self,
@@ -76,6 +86,8 @@ class MarketScreener:
         trend_ema_short: int = 10,
         trend_ema_long: int = 50,
         min_score: float = 0.4,
+        min_price_krw: float = 500.0,
+        min_daily_volume_krw: float = 2_000_000_000.0,  # 20억 KRW
         weights: Optional[Dict[str, float]] = None,
     ):
         self.min_volume_ratio = min_volume_ratio
@@ -84,6 +96,8 @@ class MarketScreener:
         self.trend_ema_short = trend_ema_short
         self.trend_ema_long = trend_ema_long
         self.min_score = min_score
+        self.min_price_krw = min_price_krw
+        self.min_daily_volume_krw = min_daily_volume_krw
         self.weights = weights or {
             "volume": 0.20,
             "volatility": 0.25,
@@ -107,6 +121,10 @@ class MarketScreener:
 
         if current_price <= 0:
             result.reasons.append("invalid price")
+            return result
+
+        if current_price < self.min_price_krw:
+            result.reasons.append(f"price too low ({current_price:,.0f} < {self.min_price_krw:,.0f} KRW)")
             return result
 
         # --- Volume score ---
@@ -229,6 +247,41 @@ class MarketScreener:
         )
         return selected
 
+    def _pre_filter_markets(self, exchange, all_markets: List[str]) -> List[str]:
+        """Pre-filter markets by price and daily volume using ticker data."""
+        passed = []
+        rejected_price = 0
+        rejected_volume = 0
+        rejected_exclude = 0
+
+        for market in all_markets:
+            if market.upper() in self.EXCLUDE_COINS:
+                rejected_exclude += 1
+                continue
+            try:
+                ticker = exchange.get_ticker(market)
+                price = ticker.get("trade_price", 0)
+                vol_24h = ticker.get("acc_trade_volume_24h", 0)
+                daily_krw = price * vol_24h if price and vol_24h else 0
+
+                if price < self.min_price_krw:
+                    rejected_price += 1
+                    continue
+                if daily_krw < self.min_daily_volume_krw:
+                    rejected_volume += 1
+                    continue
+                passed.append(market)
+            except Exception:
+                continue
+
+        log.info(
+            "Pre-filter: %d passed, %d low price (<%s KRW), %d low volume (<%s KRW), %d excluded",
+            len(passed), rejected_price, f"{self.min_price_krw:,.0f}",
+            rejected_volume, f"{self.min_daily_volume_krw/1e8:,.0f}억",
+            rejected_exclude,
+        )
+        return passed
+
     def auto_discover(
         self,
         exchange,
@@ -251,12 +304,15 @@ class MarketScreener:
 
         log.info("Auto-discovery: found %d markets on %s", len(all_markets), exchange.name)
 
+        # Stage 1: pre-filter by price and daily volume (fast, ticker-based)
+        candidates = self._pre_filter_markets(exchange, all_markets)
+        candidates = [m for m in candidates if m not in exclude_set]
+
+        # Stage 2: fetch OHLCV and score
         market_data: Dict[str, pd.DataFrame] = {}
         from src.data import candles_to_dataframe
 
-        for market in all_markets:
-            if market in exclude_set:
-                continue
+        for market in candidates:
             try:
                 candles = exchange.fetch_ohlcv(market, timeframe=timeframe, count=count)
                 df = candles_to_dataframe(candles)
@@ -265,7 +321,7 @@ class MarketScreener:
             except Exception as exc:
                 log.debug("Skipping %s: %s", market, exc)
 
-        log.info("Auto-discovery: fetched OHLCV for %d/%d markets", len(market_data), len(all_markets))
+        log.info("Auto-discovery: fetched OHLCV for %d/%d candidates", len(market_data), len(candidates))
 
         all_scores = self.rank_markets(market_data)
         tradeable = [s.market for s in all_scores if s.tradeable]
